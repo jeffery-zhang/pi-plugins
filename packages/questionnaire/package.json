@@ -1,11 +1,13 @@
 {
-  "name": "@pi-plugins/questionnaire",
-  "private": true,
+  "name": "@jingoz/pi-questionnaire",
   "type": "module",
   "version": "0.1.0",
   "description": "Interactive questionnaire extension for pi",
   "keywords": ["pi", "pi-package", "questionnaire", "tui"],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "pi": {
     "extensions": ["./src/index.ts"]
   },
