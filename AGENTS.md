@@ -10,7 +10,7 @@ Issue 以本地 Markdown 文件记录在 `.scratch/` 下。详见 `docs/agents/i
 
 ### 领域文档
 
-使用单上下文领域文档布局。详见 `docs/agents/domain.md`。
+处理插件领域术语、`CONTEXT.md` 或 ADR 时，使用 `CONTEXT-MAP.md` 定位相关上下文。详见 `docs/agents/domain.md`。
 
 ## Pi 插件开发
 
@@ -18,7 +18,8 @@ Issue 以本地 Markdown 文件记录在 `.scratch/` 下。详见 `docs/agents/i
 
 ### 包结构
 
-- 每个插件独立放在 `packages/<kebab-case-name>/`，至少包含 `package.json` 和 `src/index.ts`。
+- 尚未实现的插件可以先仅在 `packages/<plugin-name>/CONTEXT.md` 记录领域语言；开始实现时必须补齐以下标准包结构。
+- 每个已实现插件独立放在 `packages/<kebab-case-name>/`，至少包含 `package.json` 和 `src/index.ts`。
 - `package.json` 使用 `type: "module"`、`private: true` 和显式的 `pi.extensions: ["./src/index.ts"]`；仅在准备发布时添加版本与发布元数据，并移除 `private: true`。
 - 实际导入的 Pi 自带包和 `typebox` 放入 `peerDependencies`，版本为 `"*"`；第三方运行时依赖放入 `dependencies`，开发工具放入 `devDependencies`。
 - 优先复用 Pi API、Node.js 标准库和仓库已有代码；一个实现不增加额外抽象层。

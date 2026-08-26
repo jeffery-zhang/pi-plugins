@@ -1,6 +1,6 @@
-# Pi Plugins
+# OA Compaction
 
-This context defines shared language for Pi plugins that integrate OpenAI-compatible upstream context compaction while preserving Pi session portability.
+This context defines language for integrating OpenAI-compatible upstream context compaction while preserving Pi session portability.
 
 ## Language
 
