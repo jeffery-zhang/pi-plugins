@@ -1,19 +1,29 @@
-# 05 — 跨模式隔离与交付验证
+# 05 - Session 边界、模式隔离与交付验证
 
-**What to build:** 完成 Image Input 的兼容性边界、文档和端到端验证，使插件能够安全交给 Agent 实现或维护，而不会改变 RPC、CLI 或其他扩展输入契约。
+Type: task
+Status: ready-for-agent
+Blocked by: 04
 
-**Blocked by:** 04 — 队列与 session 生命周期连续性.
+Spec: [TUI Image Input with Stable References](../spec.md)
 
-**Status:** ready-for-agent
+## Outcome
 
-- [ ] RPC 的路径文本和图片 payload 保持原样，包括 RPC steer 与 follow-up。
-- [ ] extension source 输入保持原样。
-- [ ] CLI `@file` 图片继续由 Pi 原生入口处理，插件不重复规范化。
-- [ ] 任意普通文件路径、非 Pi 剪贴板路径和未知 Image Reference 保持原样。
-- [ ] 所有实现只依赖 Node.js 标准库和 Pi 的公开导出，不增加第三方运行时依赖。
-- [ ] 所需 API 均针对仓库声明的 Pi 0.84.2 基线验证；本机 0.84.3 兼容性同时记录，但不隐式升级基线。
-- [ ] 插件声明的检查和测试命令全部通过。
-- [ ] 真实 TUI 冒烟覆盖单图、多图、streaming steer/follow-up、非视觉模型、compaction 和未提交草稿 reload/session switch。
-- [ ] 会话结果确认只保留 Image Reference 和规范化 Image Attachment，不包含临时路径。
-- [ ] 包文档说明行为、限制、失败语义和验证方式，仓库 README 同步登记已实现插件。
-- [ ] 验证过程不执行安装命令，除非用户另行明确要求。
+完成 reload/session replacement 恢复、非 TUI 输入隔离、幂等清理、文档和最终验证，使整个 P0 可以按声明的 Pi 0.84.3+ 边界交付。
+
+## Acceptance Criteria
+
+- [ ] reload、new、resume、fork、tree switch 或 extension replacement 使 pending editor 状态失效前，known Image Reference token 被恢复成原始临时路径。
+- [ ] replacement 后允许未提交路径获得新编号，不持久化 pending provenance，也不尝试重写用户自然语言中的旧编号。
+- [ ] 生命周期恢复和清理幂等；重复事件不会重复附件、损坏 editor 文本或泄漏 prepared/dormant mapping。
+- [ ] 插件不删除或垃圾回收 Pi 拥有的临时 clipboard 文件。
+- [ ] 已提交 Image Reference 在 attachment 离开 active context 后仍保留历史文本，但插件不会因后续提及而自动重附图片。
+- [ ] RPC path text、RPC image payload、RPC steer/follow-up 和 extension-source input 保持不变。
+- [ ] CLI `@file` 产生的既有图片、任意普通路径、非 Pi clipboard 路径、GIF 路径和未知 Image Reference 保持不变。
+- [ ] JSON、print 和无 TUI UI 场景不安装交互 editor，也不调用 TUI-only API。
+- [ ] 实现只依赖 Node.js 标准库和 Pi 公开导出；私有 `pi-clipboard-*` 约定只用于路径识别，并有兼容测试和文档说明。
+- [ ] package README 和根 README 说明最低 Pi 版本、PNG/JPEG/WebP 支持、GIF passthrough、失败语义、queue/dequeue、reload 重新编号、历史恢复限制和验证命令。
+- [ ] package 声明的 `check` 与 `test` 全部通过，`git diff --check` 无错误。
+- [ ] 真实 TUI 冒烟覆盖单图、多图、steer/follow-up、dequeue、unsupported model、compaction success/failure/cancel、reload/session switch 和 GIF passthrough。
+- [ ] session 结果确认提交文本只含 Image Reference，plugin-owned 图片以 flat Image Attachment 持久化，且不含对应临时路径。
+- [ ] 当前可用平台与 provider 的实际覆盖和未覆盖项记录在包文档中，不把未执行的平台测试声明为已验证。
+- [ ] 验证过程不执行 `pi install`，除非用户另行明确要求。
