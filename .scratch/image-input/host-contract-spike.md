@@ -116,25 +116,22 @@ The capability signal does not guarantee that every provider accepts every MIME 
 
 ## Verdict
 
-The core single-image and multi-image editor/input path is implementable on 0.84.2.
+The public `input` transform and image normalization contracts are sufficient for the revised Pi 0.84.3 P0 Attachment Bridge.
 
-The full current specification is not implementation-ready until product decisions settle:
+Real TUI validation established that the original stable-reference editor design conflicts with installed editor extensions: explicit `-e` Image Input loaded first, then `pi-fff` installed `FffEditor` and replaced it. With automatic extensions disabled, the editor path worked, confirming an editor-factory conflict rather than clipboard-path recognition failure.
 
-1. whether to keep the 0.84.2 compaction workaround or upgrade the compatibility baseline;
-2. how Image Reference provenance and manually typed collisions are represented;
-3. how prepared/queued submissions are correlated without host queue IDs;
-4. whether resized animated GIFs may become static;
-5. whether the private `pi-clipboard-*` path convention is an accepted compatibility dependency.
+The revised P0 avoids custom editors. It converts canonical paths at idle submission, replaces them with `[Image]`, appends ImageContent, and blocks busy-state image submission. The private path heuristic is accepted, GIF is passthrough, and no queue ledger or provenance is required. The revised specification is implementation-ready.
 
 ## Remaining Manual Verification
 
-The spike did not claim cross-platform clipboard or real-provider coverage. Implementation verification still needs:
+Implementation verification still needs:
 
-- Windows Terminal, WSL, X11/Wayland, and macOS clipboard smoke tests where available;
-- real TUI dequeue, abort/retry, reload, new/resume/fork/tree flows;
-- manual, threshold, and overflow compaction paths;
-- target providers with PNG, JPEG, WebP, and GIF;
-- duplicate queued text/reference scenarios under both queue modes.
+- real TUI single- and multi-image submission with normal installed extensions, including `pi-fff`;
+- session inspection proving `[Image]` plus ImageContent and no converted temporary path;
+- unsupported-model and conversion-failure draft restoration;
+- streaming and active-compaction submission guards;
+- Windows coverage first, with WSL, X11/Wayland, and macOS clipboard smoke where available;
+- target providers with PNG, JPEG, and WebP.
 
 ## Primary Sources
 

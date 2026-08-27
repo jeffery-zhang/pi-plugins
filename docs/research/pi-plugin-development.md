@@ -2,7 +2,8 @@
 
 ## 基线
 
-- 本机使用 `@earendil-works/pi-coding-agent@0.84.2`，npm 元数据指向 [`earendil-works/pi`](https://github.com/earendil-works/pi/tree/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent)。本文以该版本随包的 [`extensions.md`](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/docs/extensions.md) 和 [`packages.md`](https://github.com/earendil-works/pi/blob/914cf1472e715297caa30db4b9535d534a9eb718/packages/coding-agent/docs/packages.md) 为准。
+- 本机使用 `@earendil-works/pi-coding-agent@0.84.3`，npm 元数据指向 [`earendil-works/pi`](https://github.com/earendil-works/pi/tree/v0.84.3/packages/coding-agent)。本文以该版本随包的 [`extensions.md`](https://github.com/earendil-works/pi/blob/v0.84.3/packages/coding-agent/docs/extensions.md) 和 [`packages.md`](https://github.com/earendil-works/pi/blob/v0.84.3/packages/coding-agent/docs/packages.md) 为准。
+- 0.84.3 在 0.84.2 基础上新增 `session_compact_failed` 扩展事件，Image Input 以此可靠处理 compaction 失败/取消，不再使用 0.84.2 间接状态推断。
 - 旧包 `@mariozechner/pi-coding-agent` 已弃用；新代码统一从 `@earendil-works/*` 导入。参见[当前 npm 包](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)与[旧 npm 包](https://www.npmjs.com/package/@mariozechner/pi-coding-agent)。
 
 ## Pi 的强制约束

@@ -14,7 +14,7 @@ Issue 以本地 Markdown 文件记录在 `.scratch/` 下。详见 `docs/agents/i
 
 ## Pi 插件开发
 
-开发或修改 `packages/*` 下的插件前，先阅读 `docs/research/pi-plugin-development.md`。当前兼容基线是 `@earendil-works/pi-coding-agent@0.84.2`；统一从 `@earendil-works/*` 导入，升级基线必须单独验证并更新研究文档。
+开发或修改 `packages/*` 下的插件前，先阅读 `docs/research/pi-plugin-development.md`。当前兼容基线是 `@earendil-works/pi-coding-agent@0.84.3`；该版本新增 `session_compact_failed`，统一从 `@earendil-works/*` 导入，升级基线必须单独验证并更新研究文档。
 
 ### 包结构
 

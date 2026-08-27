@@ -1,27 +1,21 @@
 # Image Input
 
-Image Input stages local images while a user composes a message and delivers those images with stable, user-visible references in the same conversation.
+Image Input converts Pi-native TUI clipboard image paths into image attachments when a user submits an idle draft. It leaves editor presentation and platform clipboard behavior to Pi.
 
 ## Language
 
 **Image Draft**:
-The active user draft containing zero or more image references. Its pending images remain editable until the draft is successfully submitted or discarded.
+The active TUI draft containing zero or more clipboard image paths before submission.
+_Avoid_: Image state, staged prompt
 
-**Staged Image**:
-A local image captured for an Image Draft but not yet delivered to the model.
-_Avoid_: Uploaded image, pasted file
+**Clipboard Image Path**:
+A temporary local path created by Pi's native clipboard flow for a pasted image. Only canonical Pi clipboard paths are eligible for conversion.
+_Avoid_: Uploaded image, arbitrary image path
 
-**Image Reference**:
-A session-scoped stable label such as `[Image #7]` that identifies one staged or delivered image. References increase monotonically within a session and are never renumbered.
-_Avoid_: Image index, attachment number
-
-**Pending Image**:
-A Staged Image whose Image Reference remains in the active Image Draft. Removing the final occurrence of its reference cancels that pending image.
+**Image Marker**:
+The unnumbered `[Image]` token that replaces one clipboard image path in submitted text. A marker records position only; it has no stable identity and does not retrieve historical images.
+_Avoid_: Image Reference, image index
 
 **Image Attachment**:
-The normalized image delivered with the user message and retained in conversation history. Attachments are ordered by Image Reference number; a model infers the association from message context and order, and the plugin does not guarantee that interpretation.
-_Avoid_: Image mapping
-
-**Available Image**:
-An Image Attachment that remains in the model's active context. An Image Reference can outlive image availability after conversation compaction.
-_Avoid_: Stored image, permanent image
+The normalized image content delivered with a user message and retained in conversation history. Plugin-created attachments follow clipboard image path occurrence order.
+_Avoid_: Read result, image mapping

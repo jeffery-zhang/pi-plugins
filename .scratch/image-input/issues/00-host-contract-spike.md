@@ -6,25 +6,20 @@ Blocked by:
 
 ## Question
 
-Can Image Input observe native TUI editing, fail closed at `input`, retain images through normal queues, track compaction to completion, and normalize supported images using the tested Pi host contracts?
+Can Image Input convert Pi-native TUI clipboard image paths into same-message ImageContent while preserving Pi's other input contracts?
 
 ## Answer
 
-The executable and source-level findings are recorded in [host-contract-spike.md](../host-contract-spike.md). The spike used exact Pi 0.84.2 behavior to expose the original gaps and verified that Pi 0.84.3 adds the required `session_compact_failed` lifecycle event.
+The executable and source findings are recorded in [host-contract-spike.md](../host-contract-spike.md). Pi 0.84.3 provides the required interactive `input` transform, flat ImageContent contract, `resizeImage()`, lifecycle events, editor text APIs, and terminal-input observation.
 
-The implementation contracts are now settled in [spec.md](../spec.md):
+Manual TUI validation added one decisive finding: explicit `-e` extensions load before installed packages, and `pi-fff` later installs its own `FffEditor`. The original Image Input custom editor was therefore overwritten. With automatic extensions disabled, the editor-based implementation worked, proving the conflict rather than path recognition was the failure.
 
-- observe `handleInput()`, `insertTextAtCursor()`, and `setText()` through `CustomEditor`;
-- catch `input` failures and return `{ action: "handled" }` because thrown handler errors are fail-open;
-- maintain a plugin-owned prepared ledger because queue dequeue surfaces return text without images or stable IDs;
-- require Pi 0.84.3 or newer and use `session_compact_failed` instead of a 0.84.2 workaround;
-- accept `pi-clipboard-*` as a smoke-tested compatibility heuristic;
-- keep pending mappings in memory, use exclusive queued ownership, and recover counters best effort from image-bearing history;
-- process PNG, JPEG, and WebP while leaving GIF as an ordinary Pi path.
+The P0 design now avoids custom editors entirely. It scans canonical paths at idle submission, replaces each submitted path with `[Image]`, appends ImageContent, and blocks busy-state image submission. Queue IDs, stable references, provenance, and editor composition are no longer required.
 
-No remaining host-contract or P0 product decision blocks implementation.
+No remaining host-contract or P0 product decision blocks the revised implementation.
 
 ## Comments
 
-- The isolated harness used real Pi editor/session/extension/image code and a synthetic local provider; it made no network model requests.
-- Real TUI, platform clipboard, provider, queue, and lifecycle behavior remains part of implementation acceptance testing.
+- `input` exceptions are fail-open and must be converted to draft restoration, notification, and `{ action: "handled" }`.
+- Pi normal queues retain transformed images internally, but revised P0 blocks image submission while non-idle and therefore needs no queue ledger.
+- The private `pi-clipboard-*` filename remains a compatibility heuristic protected by package tests and real TUI smoke.
