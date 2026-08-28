@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname, sep } from "node:path";
+import { basename, extname, sep } from "node:path";
 import {
   VERSION,
   resizeImage,
@@ -130,6 +130,34 @@ function replaceOccurrences(text: string, occurrences: ClipboardImageOccurrence[
   return transformed;
 }
 
+function restoreImageDraft(
+  ctx: ExtensionContext,
+  text: string,
+  message: string,
+): Extract<InputEventResult, { action: "handled" }> {
+  if (ctx.hasUI) {
+    try {
+      ctx.ui.setEditorText(text);
+    } catch {
+      // Input interception must remain fail-closed even if the UI cannot restore the draft.
+    }
+    try {
+      ctx.ui.notify(message, "error");
+    } catch {
+      // A notification failure must not release the raw path to the provider.
+    }
+  }
+  return { action: "handled" };
+}
+
+function failureMessage(error: unknown, filePath?: string): string {
+  if (error instanceof Error && error.name === "AbortError") {
+    return "Image submission cancelled; the draft was restored";
+  }
+  const target = filePath ? ` ${basename(filePath)}` : "";
+  return `Could not attach${target}; the draft was restored`;
+}
+
 async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<InputEventResult> {
   if (ctx.mode !== "tui" || event.source !== "interactive" || event.streamingBehavior !== undefined) {
     return { action: "continue" };
@@ -140,23 +168,35 @@ async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<In
     return { action: "continue" };
   }
 
+  let currentPath: string | undefined;
   try {
+    if (!ctx.model?.input.includes("image")) {
+      return restoreImageDraft(
+        ctx,
+        event.text,
+        "Current model does not support image input; the draft was restored",
+      );
+    }
+
     const normalizedByPath = new Map<string, FlatImageContent>();
     const images: FlatImageContent[] = [];
     for (const occurrence of occurrences) {
+      currentPath = occurrence.path;
+      ctx.signal?.throwIfAborted();
       let image = normalizedByPath.get(occurrence.path);
       if (!image) {
         const mimeType = clipboardPathToMimeType(occurrence.path);
         if (!mimeType) {
-          return { action: "continue" };
+          throw new Error("Unsupported clipboard image type");
         }
         const bytes = await readFile(occurrence.path, { signal: ctx.signal });
         if (!isSupportedImageSignature(bytes, mimeType)) {
-          return { action: "continue" };
+          throw new Error("Clipboard image content does not match its extension");
         }
         const resized = await resizeImage(bytes, mimeType);
+        ctx.signal?.throwIfAborted();
         if (!resized) {
-          return { action: "continue" };
+          throw new Error("Clipboard image could not be normalized");
         }
         image = {
           type: "image",
@@ -172,8 +212,8 @@ async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<In
       text: replaceOccurrences(event.text, occurrences),
       images: event.images ? [...event.images, ...images] : images,
     };
-  } catch {
-    return { action: "continue" };
+  } catch (error) {
+    return restoreImageDraft(ctx, event.text, failureMessage(error, currentPath));
   }
 }
 

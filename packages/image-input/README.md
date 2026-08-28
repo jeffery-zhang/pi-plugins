@@ -9,6 +9,7 @@ Pi TUI Clipboard Image Attachment Bridge for Pi 0.84.3 and newer.
 - On an idle interactive TUI `input` event, every canonical clipboard image path is read, validated by content signature, normalized with Pi's public `resizeImage()` defaults, replaced in place by `[Image]`, and appended as a flat image attachment in occurrence order.
 - Existing `event.images` are preserved first; plugin images follow in occurrence order.
 - Repeated paths produce repeated markers and attachments. Their normalized data may be reused within the submission, but attachments are not deduplicated.
+- The selected model must support image input. Any read, signature, normalization, cancellation, or model-capability failure blocks the whole prompt, restores the original path-bearing draft, and reports an error.
 - GIF paths, ordinary paths, noncanonical paths, and handwritten `[Image]` text pass through unchanged.
 
 ## Path Contract

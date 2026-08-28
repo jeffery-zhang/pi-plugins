@@ -43,12 +43,14 @@ interface Harness {
   hasInputHandler: boolean;
   sessionStart?: (...args: unknown[]) => unknown;
   notifications: Array<{ message: string; type?: string }>;
+  editorTexts: string[];
   calls: string[];
 }
 
 function createHarness(version = "0.84.3"): Harness {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
   const notifications: Harness["notifications"] = [];
+  const editorTexts: string[] = [];
   const calls: string[] = [];
   const fakePi = {
     on: (event: string, handler: (...args: unknown[]) => unknown) => {
@@ -62,10 +64,14 @@ function createHarness(version = "0.84.3"): Harness {
     mode: "tui",
     hasUI: true,
     signal: undefined,
+    model: { input: ["text", "image"] },
     cwd: process.cwd(),
     ui: {
       notify: (message: string, type?: string) => {
         notifications.push({ message, type });
+      },
+      setEditorText: (text: string) => {
+        editorTexts.push(text);
       },
     },
   } as unknown as ExtensionContext;
@@ -80,6 +86,7 @@ function createHarness(version = "0.84.3"): Harness {
     hasInputHandler: registeredInput !== undefined,
     sessionStart: handlers.get("session_start"),
     notifications,
+    editorTexts,
     calls,
   };
 }
@@ -314,28 +321,100 @@ test("repeated clipboard paths produce one marker and attachment per occurrence"
   }
 });
 
-test("passes through content-signature mismatches and unreadable canonical paths", async () => {
+test("fails closed and restores the exact draft for invalid or unreadable images", async () => {
   const mismatched = writeClipboardImage("png", JPEG_BYTES);
+  const malformed = writeClipboardImage("png", Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   const missing = join(tmpdir(), `pi-clipboard-${randomUUID()}.png`);
   try {
-    const harness = createHarness();
-    assert.deepEqual(
-      await harness.handler(
-        { type: "input", source: "interactive", text: mismatched },
-        harness.ctx,
-      ),
-      { action: "continue" },
-    );
-    assert.deepEqual(
-      await harness.handler(
-        { type: "input", source: "interactive", text: missing },
-        harness.ctx,
-      ),
-      { action: "continue" },
-    );
+    for (const filePath of [mismatched, malformed, missing]) {
+      const harness = createHarness();
+      const text = `Keep this exact draft: ${filePath}`;
+      assert.deepEqual(
+        await harness.handler({ type: "input", source: "interactive", text }, harness.ctx),
+        { action: "handled" },
+      );
+      assert.deepEqual(harness.editorTexts, [text]);
+      assert.equal(harness.notifications.length, 1);
+      assert.equal(harness.notifications[0]?.type, "error");
+      assert.match(harness.notifications[0]?.message ?? "", /pi-clipboard-/);
+    }
   } finally {
     rmSync(mismatched, { force: true });
+    rmSync(malformed, { force: true });
   }
+});
+
+test("fails the whole draft when any image fails", async () => {
+  const valid = writeClipboardImage("png", PNG_BYTES);
+  const invalid = writeClipboardImage("jpg", PNG_BYTES);
+  try {
+    const harness = createHarness();
+    const text = `${valid} then ${invalid}`;
+    assert.deepEqual(
+      await harness.handler({ type: "input", source: "interactive", text }, harness.ctx),
+      { action: "handled" },
+    );
+    assert.deepEqual(harness.editorTexts, [text]);
+    assert.equal(harness.notifications.length, 1);
+  } finally {
+    rmSync(valid, { force: true });
+    rmSync(invalid, { force: true });
+  }
+});
+
+test("blocks image drafts for models without image input", async () => {
+  const filePath = writeClipboardImage("png", PNG_BYTES);
+  try {
+    const harness = createHarness();
+    const textOnlyModel = { ...harness.ctx, model: { input: ["text"] } } as unknown as ExtensionContext;
+    assert.deepEqual(
+      await harness.handler({ type: "input", source: "interactive", text: filePath }, textOnlyModel),
+      { action: "handled" },
+    );
+    assert.deepEqual(harness.editorTexts, [filePath]);
+    assert.match(harness.notifications[0]?.message ?? "", /does not support image input/i);
+  } finally {
+    rmSync(filePath, { force: true });
+  }
+});
+
+test("aborted image processing fails closed", async () => {
+  const filePath = writeClipboardImage("png", PNG_BYTES);
+  try {
+    const harness = createHarness();
+    const controller = new AbortController();
+    controller.abort();
+    const abortedCtx = { ...harness.ctx, signal: controller.signal } as ExtensionContext;
+    assert.deepEqual(
+      await harness.handler({ type: "input", source: "interactive", text: filePath }, abortedCtx),
+      { action: "handled" },
+    );
+    assert.deepEqual(harness.editorTexts, [filePath]);
+    assert.match(harness.notifications[0]?.message ?? "", /cancelled/i);
+  } finally {
+    rmSync(filePath, { force: true });
+  }
+});
+
+test("UI failures cannot make image processing fail open", async () => {
+  const missing = join(tmpdir(), `pi-clipboard-${randomUUID()}.png`);
+  const harness = createHarness();
+  const brokenUiCtx = {
+    ...harness.ctx,
+    ui: {
+      ...harness.ctx.ui,
+      setEditorText: () => {
+        throw new Error("editor unavailable");
+      },
+      notify: () => {
+        throw new Error("notification unavailable");
+      },
+    },
+  } as ExtensionContext;
+  assert.deepEqual(
+    await harness.handler({ type: "input", source: "interactive", text: missing }, brokenUiCtx),
+    { action: "handled" },
+  );
 });
 
 test("only converts TUI interactive idle input", async () => {
