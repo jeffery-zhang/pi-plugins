@@ -281,7 +281,7 @@ test("converts a single canonical PNG/JPEG/WebP path to marker and flat image co
           harness.ctx,
         ),
       );
-      assert.equal(result.text, "[Image]");
+      assert.equal(result.text, "`[Image]`");
       assert.ok(!result.text.includes("pi-clipboard-"));
       assert.ok(result.images);
       assert.equal(result.images.length, 1);
@@ -334,7 +334,7 @@ test("preserves surrounding text, ordinary paths, and handwritten markers", asyn
         harness.ctx,
       ),
     );
-    assert.equal(result.text, `Describe [Image]. Also look at ${ordinaryPath} and keep [Image] literal.`);
+    assert.equal(result.text, `Describe \`[Image]\`. Also look at ${ordinaryPath} and keep [Image] literal.`);
     assert.equal(result.images?.length, 1);
   } finally {
     rmSync(filePath, { force: true });
@@ -354,7 +354,7 @@ test("keeps existing images first and appends the plugin image", async () => {
         harness.ctx,
       ),
     );
-    assert.equal(result.text, "Analyze [Image]");
+    assert.equal(result.text, "Analyze `[Image]`");
     assert.ok(result.images);
     assert.equal(result.images.length, 2);
     assert.equal(result.images[0], existing[0]);
@@ -400,7 +400,7 @@ test("converts every eligible occurrence in order and preserves existing images 
     );
     assert.equal(
       result.text,
-      `First [Image]; handwritten [Image]; second [Image]; gif ${gif}; ordinary ${ordinary}`,
+      `First \`[Image]\`; handwritten [Image]; second \`[Image]\`; gif ${gif}; ordinary ${ordinary}`,
     );
     assert.ok(result.images);
     assert.equal(result.images.length, 3);
@@ -426,7 +426,7 @@ test("repeated clipboard paths produce one marker and attachment per occurrence"
         harness.ctx,
       ),
     );
-    assert.equal(result.text, "[Image] then [Image]");
+    assert.equal(result.text, "`[Image]` then `[Image]`");
     assert.equal(result.images?.length, 2);
     assert.deepEqual(result.images?.[0], result.images?.[1]);
   } finally {
@@ -553,7 +553,7 @@ test("converts image drafts through idle, steer, and follow-up delivery paths", 
           ctx,
         ),
       );
-      assert.equal(result.text, "First [Image]; repeat [Image]; second [Image]");
+      assert.equal(result.text, "First `[Image]`; repeat `[Image]`; second `[Image]`");
       assert.equal(result.images?.length, 4);
       assert.equal(result.images?.[0], existing);
       assert.equal(result.images?.[1]?.mimeType, "image/png");
@@ -597,9 +597,9 @@ test("multiple queued transforms remain independent on one extension instance", 
       ),
     );
 
-    assert.equal(steer.text, "Steer [Image] and [Image]");
+    assert.equal(steer.text, "Steer `[Image]` and `[Image]`");
     assert.equal(steer.images?.length, 2);
-    assert.equal(followUp.text, "Follow up [Image]");
+    assert.equal(followUp.text, "Follow up `[Image]`");
     assert.equal(followUp.images?.length, 1);
     assert.equal(followUp.images?.[0]?.mimeType, "image/webp");
     assert.deepEqual(harness.editorTexts, []);
@@ -829,7 +829,7 @@ test("isolates non-TUI sources and preserves existing payloads", async () => {
 test("preserves CLI-style files, existing images, and unknown markers", async () => {
   const harness = createHarness();
   const existing = [{ type: "image" as const, data: "cli-image", mimeType: "image/png" }];
-  for (const text of ["@./image.png", "C:\\images\\photo.jpg", "[Image] [Image 2]"]) {
+  for (const text of ["@./image.png", "C:\\images\\photo.jpg", "[Image] [Image 2]", "`[Image]`"]) {
     assert.deepEqual(
       await harness.handler(
         { type: "input", source: "interactive", text, images: existing },

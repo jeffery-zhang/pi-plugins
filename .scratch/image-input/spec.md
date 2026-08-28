@@ -12,9 +12,9 @@ Pi 的 TUI 在用户粘贴图片时，会把剪贴板图片写入本地临时文
 
 提供一个支持 Pi 0.84.3 及以上版本的 TUI 专属扩展。Editor 继续显示 Pi 插入的原始临时路径，插件不安装或包装 custom editor。
 
-当扩展收到 idle、`steer` 或 `followUp` 的 interactive `input` 时，它扫描所有 canonical PNG、JPEG 和 WebP Clipboard Image Path，按文本 occurrence 顺序读取、校验并使用 Pi 的公开能力规范化图片。准备成功后，每个路径在提交文本中的原位置变为 `[Image]`，对应 Image Attachment 按 occurrence 顺序追加，并由 Pi 按原生 idle、`steer` 或 `followUp` 语义交付。Active compaction 继续阻止包含 Clipboard Image Path 的提交。
+当扩展收到 idle、`steer` 或 `followUp` 的 interactive `input` 时，它扫描所有 canonical PNG、JPEG 和 WebP Clipboard Image Path，按文本 occurrence 顺序读取、校验并使用 Pi 的公开能力规范化图片。准备成功后，每个路径在提交文本中的原位置变为反引号包裹的 `[Image]`，对应 Image Attachment 按 occurrence 顺序追加，并由 Pi 按原生 idle、`steer` 或 `followUp` 语义交付。Active compaction 继续阻止包含 Clipboard Image Path 的提交。
 
-所有插件拥有的图片必须在入队前准备成功；否则整条提交失败关闭并恢复原始 Image Draft。消息成功入队后由 Pi 原生队列负责生命周期：正常交付保留 Image Marker 和 Image Attachment，但 dequeue、Esc 或 abort 只恢复转换后的 `[Image]` 文本，排队后切换到纯文本模型也可能让 Pi 省略图片。P0 接受这些限制，不增加 prepared ledger 或 host contract。
+所有插件拥有的图片必须在入队前准备成功；否则整条提交失败关闭并恢复原始 Image Draft。消息成功入队后由 Pi 原生队列负责生命周期：正常交付保留 Image Marker 和 Image Attachment，但 dequeue、Esc 或 abort 只恢复转换后的反引号包裹 `[Image]` 文本，排队后切换到纯文本模型也可能让 Pi 省略图片。P0 接受这些限制，不增加 prepared ledger 或 host contract。
 
 ## P0 Product Decisions
 
@@ -22,7 +22,7 @@ Pi 的 TUI 在用户粘贴图片时，会把剪贴板图片写入本地临时文
 - 插件接受 `<os.tmpdir()>/pi-clipboard-<uuid>.<ext>` 作为版本绑定、由自动检查和真实 TUI smoke 保护的兼容约定。
 - P0 只转换 PNG、JPEG 和 WebP。GIF、普通文件路径和非 canonical 临时路径保持 Pi 的普通文本行为。
 - 插件不安装 custom editor，不隐藏 editor 中的临时路径，也不与 `pi-fff` 或其他 editor extension 竞争。
-- 每个 eligible path occurrence 在提交文本中替换为无编号的 `[Image]`；用户手写的 `[Image]` 只是普通文本。
+- 每个 eligible path occurrence 在提交文本中替换为无编号、反引号包裹的 `[Image]`；用户手写的 `[Image]` 或反引号包裹的 `[Image]` 只是普通文本。
 - 同一草稿中的所有 eligible paths 都被转换。每个 occurrence 产生一张附件，不按路径字符串去重。
 - 插件创建的 Image Attachments 按 path occurrence 顺序追加在已有 `event.images` 之后。
 - 图片提交在 Pi idle 以及原生 streaming `steer`、`followUp` 路径中允许；三者使用同一转换和失败语义。
@@ -38,10 +38,10 @@ Pi 的 TUI 在用户粘贴图片时，会把剪贴板图片写入本地临时文
 
 1. As a TUI user, I want a pasted supported image delivered as native image content, so that the model does not need to read a temporary file.
 2. As a TUI user, I want Pi's existing editor to remain in control, so that Image Input continues to coexist with `pi-fff` and other editor extensions.
-3. As a TUI user, I want each converted Clipboard Image Path replaced by `[Image]`, so that submitted text and session history do not retain the temporary path after normal delivery.
+3. As a TUI user, I want each converted Clipboard Image Path replaced by a backtick-wrapped `[Image]`, so that submitted text and session history do not retain the temporary path and the TUI renders the marker with code emphasis after normal delivery.
 4. As a TUI user, I want multiple clipboard images converted in textual occurrence order, so that each Image Marker corresponds positionally to the intended Image Attachment.
 5. As a TUI user, I want repeated occurrences of one Clipboard Image Path to produce repeated attachments, so that repetition in my Image Draft is preserved.
-6. As a TUI user, I want handwritten `[Image]` text to remain ordinary text, so that marker-looking prose is not treated as an attachment.
+6. As a TUI user, I want handwritten `[Image]` or backtick-wrapped `[Image]` text to remain ordinary text, so that marker-looking prose is not treated as an attachment.
 7. As a TUI user, I want PNG, JPEG and WebP converted while GIF and arbitrary paths pass through, so that the supported path contract remains predictable.
 8. As a TUI user, I want any pre-submission conversion failure to block the whole message and restore my Image Draft, so that partial image delivery cannot occur.
 9. As a TUI user, I want a model without image input support to reject the Image Draft before submission, so that an unsupported current model cannot silently drop the attachment.
@@ -69,7 +69,7 @@ Pi 的 TUI 在用户粘贴图片时，会把剪贴板图片写入本地临时文
 - Each unique file is read with the event `AbortSignal`, checked by content signature, and normalized once with Pi's public `resizeImage()` defaults. A `null` result is failure.
 - All image preparation completes before the input handler returns a transform, so a queued message is never accepted with an unread or unvalidated Clipboard Image Path.
 - Before conversion, the selected model must advertise image input support. This check applies only at submission time; later model changes retain Pi's native behavior.
-- Successful text transformation replaces eligible path occurrences in place with `[Image]`. Whitespace and surrounding user text are otherwise preserved.
+- Successful text transformation replaces eligible path occurrences in place with a backtick-wrapped `[Image]`. Whitespace and surrounding user text are otherwise preserved.
 - Existing `event.images` are preserved byte-for-byte and remain first; plugin-created flat `{ type: "image", data, mimeType }` attachments follow occurrence order.
 - The `input` handler catches all processing errors, restores the original text through public TUI editor APIs, notifies the user, and returns `{ action: "handled" }`. It never relies on throwing because Pi treats `input` exceptions as fail-open.
 - Successful streaming transforms are passed directly to Pi's native `steer` or `followUp` queue. The plugin does not track queue entries, correlate messages, deduplicate submissions or intercept dequeue.
@@ -83,7 +83,7 @@ Pi 的 TUI 在用户粘贴图片时，会把剪贴板图片写入本地临时文
 
 - The primary automated seam remains the package-level extension scenario harness using the real Pi 0.84.3 input/image contracts and a fake TUI context. It exercises the public `input` transform result rather than private queue internals.
 - Path tests cover canonical Windows/POSIX forms, temp directories with spaces, punctuation boundaries, near-match suffixes, GIF, arbitrary paths, and actual `crypto.randomUUID()` basenames.
-- Happy-path scenarios cover idle, `steer` and `followUp` submissions for PNG/JPEG/WebP, path-only input, surrounding text, handwritten `[Image]`, existing input images, and transformed message shape.
+- Happy-path scenarios cover idle, `steer` and `followUp` submissions for PNG/JPEG/WebP, path-only input, surrounding text, handwritten `[Image]`, handwritten backtick-wrapped `[Image]`, existing input images, and transformed message shape.
 - Multi-image scenarios cover mixed formats, textual order, repeated identical paths, one marker per occurrence, and normalization reuse without attachment deduplication in every accepted submission mode.
 - Failure scenarios cover missing/unreadable files, content-signature mismatch, malformed images, `resizeImage()` returning `null`, unsupported current models, abort, and unexpected errors. Streaming failures must assert exact Image Draft restoration and no transformed queue result.
 - Queue-isolation scenarios cover text-only `steer`/`followUp` passthrough and multiple independent image transforms without plugin-owned queue state.
@@ -119,7 +119,7 @@ Pi 的 TUI 在用户粘贴图片时，会把剪贴板图片写入本地临时文
 - Canonical domain vocabulary is defined by `packages/image-input/CONTEXT.md`.
 - Pi's image content contract is the flat `type`, base64 `data`, and `mimeType` representation.
 - npm verification during specification work confirmed `@earendil-works/pi-coding-agent@0.84.3` is the current latest release.
-- Pi 0.84.3 retains ImageContent in native `steer` and `followUp` queues, but its public queue mirrors and dequeue result contain text only. Transforming Clipboard Image Paths to `[Image]` therefore makes queue recovery intentionally lossy.
+- Pi 0.84.3 retains ImageContent in native `steer` and `followUp` queues, but its public queue mirrors and dequeue result contain text only. Transforming Clipboard Image Paths to a backtick-wrapped `[Image]` therefore makes queue recovery intentionally lossy.
 - Pi checks model image capability again before provider serialization. If the active model no longer supports images, Pi replaces them with an omitted placeholder before the upstream provider sees the request.
 - The accepted queue-loss boundaries are deliberate complexity tradeoffs, not guarantees that images can later be recovered from Image Markers.
 - The original stable-reference design was dropped after real TUI validation showed editor-factory conflicts with installed `pi-fff`. The bridge continues to avoid that integration surface.

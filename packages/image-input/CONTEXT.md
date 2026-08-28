@@ -13,7 +13,7 @@ A temporary local path created by Pi's native clipboard flow for a pasted image.
 _Avoid_: Uploaded image, arbitrary image path
 
 **Image Marker**:
-The unnumbered `[Image]` token that replaces one clipboard image path in submitted text. A marker records position only; it has no stable identity and does not retrieve historical images.
+The unnumbered Image Marker consists of `[Image]` wrapped in backticks and replaces one clipboard image path in submitted text. A marker records position only; it has no stable identity and does not retrieve historical images.
 _Avoid_: Image Reference, image index
 
 **Image Attachment**:

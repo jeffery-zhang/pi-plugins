@@ -12,7 +12,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 const MIN_PI_VERSION = "0.84.3";
-const IMAGE_MARKER = "[Image]";
+const IMAGE_MARKER = "`[Image]`";
 const UUID_PATTERN = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const BEFORE_PATH_CHARACTER = /[\p{L}\p{N}_.\\/~:-]/u;
 const AFTER_PATH_CHARACTER = /[\p{L}\p{N}_\\/~:-]/u;
