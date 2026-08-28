@@ -21,21 +21,21 @@ Spec: [TUI Clipboard Image Attachment Bridge](../spec.md)
 - [x] 已有 `event.images` 原样保留在前，插件图片追加在后。
 - [x] 成功 user message 和 session history 不包含已转换的临时路径。
 - [x] GIF、任意普通路径、非 canonical 临时路径和手写 `[Image]` 保持普通文本行为。
-- [x] Pi 0.84.3 runtime guard、标准私有 ESM 包结构、peer dependency 和 lockfile importer 保持有效。
+- [x] Pi 0.84.3 runtime guard、标准可发布 ESM 包结构、peer dependency 和 lockfile importer 保持有效。
 - [x] 包 README 与根 README 改为 Attachment Bridge 语义，不再声明 stable references。
 - [x] 自动场景覆盖单张 PNG/JPEG/WebP、path-only、周围文本、已有图片和 passthrough。
 - [x] `check`、`test`、frozen lockfile 和 `git diff --check` 通过。
 
 ## Answer
 
-已建立 `@pi-plugins/image-input` 私有 ESM 包，并实现 01 范围内的单图 Attachment Bridge。扩展仅处理 idle TUI interactive input；一个 canonical PNG/JPEG/WebP Clipboard Image Path 会经过内容签名校验和 Pi `resizeImage()` 规范化，在原位置替换为 `[Image]`，并追加到已有 ImageContent 之后。扩展不安装 custom editor，不读取剪贴板；低于 Pi 0.84.3 时保持 inert 并在 TUI session start 警告一次。
+已建立 `@jingoz/pi-image-input` ESM 包，并实现 01 范围内的单图 Attachment Bridge。扩展仅处理 idle TUI interactive input；一个 canonical PNG/JPEG/WebP Clipboard Image Path 会经过内容签名校验和 Pi `resizeImage()` 规范化，在原位置替换为 `[Image]`，并追加到已有 ImageContent 之后。扩展不安装 custom editor，不读取剪贴板；低于 Pi 0.84.3 时保持 inert 并在 TUI session start 警告一次。
 
 当前增量对含多个 eligible paths 的输入整体 passthrough，避免部分转换；多图全量转换、失败关闭与草稿恢复、busy-state guard 和完整模式隔离分别留给 02-05。
 
 验证通过：
 
-- `pnpm --filter @pi-plugins/image-input check`
-- `pnpm --filter @pi-plugins/image-input test`（11/11）
+- `pnpm --filter @jingoz/pi-image-input check`
+- `pnpm --filter @jingoz/pi-image-input test`（11/11）
 - `pnpm install --frozen-lockfile --offline`
 - `git diff --check`
 - `pi --no-extensions -e ./packages/image-input --list-models`

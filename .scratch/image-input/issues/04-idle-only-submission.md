@@ -27,4 +27,4 @@ Spec: [TUI Clipboard Image Attachment Bridge](../spec.md)
 
 图片提交现严格限制在 Pi idle 状态。Streaming 的 steer/follow-up input 在 `input` hook 中恢复原稿并返回 handled；active compaction 则在 editor 提交前通过 raw terminal listener 拦截当前配置的 submit/follow-up key。该 guard 仅在 editor 含 eligible path 时消费按键，text-only queue 和普通编辑不受影响。`session_compact`、`session_compact_failed`（含 abort）解除 busy 状态，`session_shutdown` 幂等注销 listener。
 
-验证通过：`pnpm --filter @pi-plugins/image-input check`、`pnpm --filter @pi-plugins/image-input test`（18/18）和 `git diff --check`。
+验证通过：`pnpm --filter @jingoz/pi-image-input check`、`pnpm --filter @jingoz/pi-image-input test`（18/18）和 `git diff --check`。

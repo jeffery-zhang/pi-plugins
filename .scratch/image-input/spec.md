@@ -49,7 +49,7 @@ Image Input 的 P0 目标是把 Pi 原生 TUI clipboard path 在提交入口转�
 
 ## Implementation Decisions
 
-- The feature remains an independent private ESM Pi package with explicit `pi.extensions`, package-local `check`/`test`, and Pi-owned peer dependencies set to `"*"`.
+- The feature remains an independent publishable ESM Pi package with explicit `pi.extensions`, package-local `check`/`test`, and Pi-owned peer dependencies set to `"*"`.
 - The package checks Pi's exported `VERSION` at runtime. Below 0.84.3 it remains inert and emits one concise TUI warning.
 - Core conversion runs only for `event.source === "interactive"` in TUI mode. Other sources return `continue` unchanged.
 - The extension never calls `setEditorComponent()` and does not read the clipboard. Pi remains responsible for platform clipboard access and inserting paths into the editor.

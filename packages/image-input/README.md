@@ -1,6 +1,12 @@
-# @pi-plugins/image-input
+# @jingoz/pi-image-input
 
 Pi TUI Clipboard Image Attachment Bridge for Pi 0.84.3 and newer.
+
+## Install
+
+```bash
+pi install npm:@jingoz/pi-image-input
+```
 
 ## Behavior
 
@@ -35,11 +41,11 @@ The path must have safe textual boundaries: it is not converted when embedded in
 
 Pi versions below `0.84.3` keep the extension inert. In TUI mode the extension emits one concise warning.
 
-## Verification
+## Local Development
 
 ```bash
-pnpm --filter @pi-plugins/image-input check
-pnpm --filter @pi-plugins/image-input test
+pnpm --filter @jingoz/pi-image-input check
+pnpm --filter @jingoz/pi-image-input test
 pnpm install --frozen-lockfile --offline
 pi -e ./packages/image-input --list-models
 pi --no-extensions -e ./packages/image-input --list-models

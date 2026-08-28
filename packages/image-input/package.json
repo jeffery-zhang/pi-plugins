@@ -1,14 +1,30 @@
 {
-  "name": "@pi-plugins/image-input",
-  "private": true,
+  "name": "@jingoz/pi-image-input",
+  "version": "0.1.0",
   "type": "module",
   "description": "Pi TUI clipboard image attachment bridge",
+  "keywords": ["pi", "pi-package", "image", "clipboard", "tui"],
+  "license": "MIT",
+  "files": ["src", "CONTEXT.md", "LICENSE", "README.md"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeffery-zhang/pi-plugins.git",
+    "directory": "packages/image-input"
+  },
+  "homepage": "https://github.com/jeffery-zhang/pi-plugins/tree/main/packages/image-input",
+  "bugs": {
+    "url": "https://github.com/jeffery-zhang/pi-plugins/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "pi": {
     "extensions": ["./src/index.ts"]
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types test/bridge.test.ts"
+    "test": "node --test --experimental-strip-types test/bridge.test.ts",
+    "prepublishOnly": "pnpm run check && pnpm run test"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

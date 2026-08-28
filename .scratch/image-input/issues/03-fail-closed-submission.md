@@ -27,4 +27,4 @@ Spec: [TUI Clipboard Image Attachment Bridge](../spec.md)
 
 Image Draft 现采用 fail-closed 语义。扩展在 I/O 前验证当前模型 image capability，逐图读取、签名校验和规范化，并在读取与规范化边界尊重 AbortSignal。任一图片或全局能力失败都会阻止整条提交，通过 `ctx.ui.setEditorText()` 恢复完整原稿并通知错误；恢复或通知 API 自身抛错也不会让 raw path 放行。
 
-验证通过：`pnpm --filter @pi-plugins/image-input check`、`pnpm --filter @pi-plugins/image-input test`（16/16）和 `git diff --check`。
+验证通过：`pnpm --filter @jingoz/pi-image-input check`、`pnpm --filter @jingoz/pi-image-input test`（16/16）和 `git diff --check`。

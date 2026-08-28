@@ -27,4 +27,4 @@ Spec: [TUI Clipboard Image Attachment Bridge](../spec.md)
 
 扩展现已转换一条 idle Image Draft 中的全部 eligible path occurrences。文本按原 occurrence 位置写入 `[Image]`，插件附件按相同顺序追加在已有 `event.images` 后；重复路径在单次提交内复用规范化结果，但仍产生独立 marker 和附件 occurrence。GIF、普通路径和手写 marker 保持原文本，不维护 counter、provenance 或历史映射。
 
-验证通过：`pnpm --filter @pi-plugins/image-input check`、`pnpm --filter @pi-plugins/image-input test`（12/12）和 `git diff --check`。
+验证通过：`pnpm --filter @jingoz/pi-image-input check`、`pnpm --filter @jingoz/pi-image-input test`（12/12）和 `git diff --check`。
