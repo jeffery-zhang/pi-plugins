@@ -10,6 +10,8 @@ Pi TUI Clipboard Image Attachment Bridge for Pi 0.84.3 and newer.
 - Existing `event.images` are preserved first; plugin images follow in occurrence order.
 - Repeated paths produce repeated markers and attachments. Their normalized data may be reused within the submission, but attachments are not deduplicated.
 - The selected model must support image input. Any read, signature, normalization, cancellation, or model-capability failure blocks the whole prompt, restores the original path-bearing draft, and reports an error.
+- Clipboard image drafts are accepted only while Pi is idle. Streaming steer/follow-up and active-compaction submissions are blocked while text-only input retains Pi's normal queue behavior.
+- The compaction submit guard uses current Pi keybindings and is installed and removed with the TUI session lifecycle.
 - GIF paths, ordinary paths, noncanonical paths, and handwritten `[Image]` text pass through unchanged.
 
 ## Path Contract

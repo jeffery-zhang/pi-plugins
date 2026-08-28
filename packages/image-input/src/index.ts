@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, sep } from "node:path";
+import { getKeybindings } from "@earendil-works/pi-tui";
 import {
   VERSION,
   resizeImage,
@@ -159,13 +160,20 @@ function failureMessage(error: unknown, filePath?: string): string {
 }
 
 async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<InputEventResult> {
-  if (ctx.mode !== "tui" || event.source !== "interactive" || event.streamingBehavior !== undefined) {
+  if (ctx.mode !== "tui" || event.source !== "interactive") {
     return { action: "continue" };
   }
 
   const occurrences = findClipboardImageOccurrences(event.text);
   if (occurrences.length === 0) {
     return { action: "continue" };
+  }
+  if (event.streamingBehavior !== undefined || !ctx.isIdle()) {
+    return restoreImageDraft(
+      ctx,
+      event.text,
+      "Clipboard images can only be submitted while Pi is idle; the draft was restored",
+    );
   }
 
   let currentPath: string | undefined;
@@ -229,6 +237,48 @@ export function createImageInputExtension(version: string = VERSION) {
       });
       return;
     }
+    let compactionActive = false;
+    let unsubscribeTerminalInput: (() => void) | undefined;
+
+    const stopTerminalGuard = (): void => {
+      unsubscribeTerminalInput?.();
+      unsubscribeTerminalInput = undefined;
+    };
+
+    pi.on("session_start", (_event, ctx) => {
+      compactionActive = false;
+      stopTerminalGuard();
+      if (ctx.mode !== "tui") {
+        return;
+      }
+      unsubscribeTerminalInput = ctx.ui.onTerminalInput((data) => {
+        if (!compactionActive) {
+          return undefined;
+        }
+        const keybindings = getKeybindings();
+        const isSubmit =
+          keybindings.matches(data, "tui.input.submit") ||
+          keybindings.matches(data, "app.message.followUp" as "tui.input.submit");
+        if (!isSubmit || findClipboardImageOccurrences(ctx.ui.getEditorText()).length === 0) {
+          return undefined;
+        }
+        ctx.ui.notify("Clipboard images can only be submitted while Pi is idle", "warning");
+        return { consume: true };
+      });
+    });
+    pi.on("session_before_compact", () => {
+      compactionActive = true;
+    });
+    pi.on("session_compact", () => {
+      compactionActive = false;
+    });
+    pi.on("session_compact_failed", () => {
+      compactionActive = false;
+    });
+    pi.on("session_shutdown", () => {
+      compactionActive = false;
+      stopTerminalGuard();
+    });
     pi.on("input", handleInput);
   };
 }

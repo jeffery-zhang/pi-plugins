@@ -4,6 +4,11 @@ import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import test from "node:test";
+import {
+  KeybindingsManager,
+  setKeybindings,
+  TUI_KEYBINDINGS,
+} from "@earendil-works/pi-tui";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -42,15 +47,31 @@ interface Harness {
   handler: (event: InputEvent, context: ExtensionContext) => Promise<InputEventResult | undefined>;
   hasInputHandler: boolean;
   sessionStart?: (...args: unknown[]) => unknown;
+  sessionBeforeCompact?: (...args: unknown[]) => unknown;
+  sessionCompact?: (...args: unknown[]) => unknown;
+  sessionCompactFailed?: (...args: unknown[]) => unknown;
+  sessionShutdown?: (...args: unknown[]) => unknown;
+  terminalInput?: (data: string) => { consume?: boolean; data?: string } | undefined;
   notifications: Array<{ message: string; type?: string }>;
   editorTexts: string[];
+  editorValue: { value: string };
+  getUnsubscribeCount: () => number;
   calls: string[];
 }
 
 function createHarness(version = "0.84.3"): Harness {
+  setKeybindings(
+    new KeybindingsManager({
+      ...TUI_KEYBINDINGS,
+      "app.message.followUp": { defaultKeys: "ctrl+q", description: "Queue follow-up message" },
+    }),
+  );
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
   const notifications: Harness["notifications"] = [];
   const editorTexts: string[] = [];
+  const editorValue = { value: "" };
+  let terminalInput: Harness["terminalInput"];
+  let unsubscribeCount = 0;
   const calls: string[] = [];
   const fakePi = {
     on: (event: string, handler: (...args: unknown[]) => unknown) => {
@@ -65,6 +86,7 @@ function createHarness(version = "0.84.3"): Harness {
     hasUI: true,
     signal: undefined,
     model: { input: ["text", "image"] },
+    isIdle: () => true,
     cwd: process.cwd(),
     ui: {
       notify: (message: string, type?: string) => {
@@ -72,6 +94,15 @@ function createHarness(version = "0.84.3"): Harness {
       },
       setEditorText: (text: string) => {
         editorTexts.push(text);
+        editorValue.value = text;
+      },
+      getEditorText: () => editorValue.value,
+      onTerminalInput: (handler: Harness["terminalInput"]) => {
+        terminalInput = handler;
+        return () => {
+          unsubscribeCount++;
+          terminalInput = undefined;
+        };
       },
     },
   } as unknown as ExtensionContext;
@@ -84,9 +115,18 @@ function createHarness(version = "0.84.3"): Harness {
     ctx,
     handler,
     hasInputHandler: registeredInput !== undefined,
+    get terminalInput() {
+      return terminalInput;
+    },
     sessionStart: handlers.get("session_start"),
+    sessionBeforeCompact: handlers.get("session_before_compact"),
+    sessionCompact: handlers.get("session_compact"),
+    sessionCompactFailed: handlers.get("session_compact_failed"),
+    sessionShutdown: handlers.get("session_shutdown"),
     notifications,
     editorTexts,
+    editorValue,
+    getUnsubscribeCount: () => unsubscribeCount,
     calls,
   };
 }
@@ -417,7 +457,73 @@ test("UI failures cannot make image processing fail open", async () => {
   );
 });
 
-test("only converts TUI interactive idle input", async () => {
+test("blocks and restores streaming image input while text-only input passes through", async () => {
+  const filePath = writeClipboardImage("png", PNG_BYTES);
+  try {
+    const harness = createHarness();
+    for (const streamingBehavior of ["steer", "followUp"] as const) {
+      const text = `Wait for idle ${filePath}`;
+      assert.deepEqual(
+        await harness.handler(
+          { type: "input", source: "interactive", text, streamingBehavior },
+          harness.ctx,
+        ),
+        { action: "handled" },
+      );
+      assert.equal(harness.editorTexts.at(-1), text);
+      assert.match(harness.notifications.at(-1)?.message ?? "", /idle/i);
+    }
+    assert.deepEqual(
+      await harness.handler(
+        { type: "input", source: "interactive", text: "plain text", streamingBehavior: "followUp" },
+        harness.ctx,
+      ),
+      { action: "continue" },
+    );
+  } finally {
+    rmSync(filePath, { force: true });
+  }
+});
+
+test("compaction terminal guard consumes only image-bearing submit keys and releases reliably", async () => {
+  const filePath = writeClipboardImage("png", PNG_BYTES);
+  try {
+    const harness = createHarness();
+    await harness.sessionStart?.({ type: "session_start", reason: "startup" }, harness.ctx);
+    assert.ok(harness.terminalInput);
+
+    harness.editorValue.value = filePath;
+    assert.equal(harness.terminalInput?.("\r"), undefined);
+    await harness.sessionBeforeCompact?.({ type: "session_before_compact" }, harness.ctx);
+    assert.deepEqual(harness.terminalInput?.("\r"), { consume: true });
+    assert.deepEqual(harness.terminalInput?.("\x11"), { consume: true });
+    assert.equal(harness.editorValue.value, filePath);
+    assert.match(harness.notifications.at(-1)?.message ?? "", /idle/i);
+
+    harness.editorValue.value = "plain text";
+    assert.equal(harness.terminalInput?.("\r"), undefined);
+    harness.editorValue.value = filePath;
+    assert.equal(harness.terminalInput?.("x"), undefined);
+
+    await harness.sessionCompact?.({ type: "session_compact" }, harness.ctx);
+    assert.equal(harness.terminalInput?.("\r"), undefined);
+    await harness.sessionBeforeCompact?.({ type: "session_before_compact" }, harness.ctx);
+    await harness.sessionCompactFailed?.({ type: "session_compact_failed", aborted: false }, harness.ctx);
+    assert.equal(harness.terminalInput?.("\r"), undefined);
+    await harness.sessionBeforeCompact?.({ type: "session_before_compact" }, harness.ctx);
+    await harness.sessionCompactFailed?.({ type: "session_compact_failed", aborted: true }, harness.ctx);
+    assert.equal(harness.terminalInput?.("\r"), undefined);
+
+    await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, harness.ctx);
+    await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, harness.ctx);
+    assert.equal(harness.getUnsubscribeCount(), 1);
+    assert.equal(harness.terminalInput, undefined);
+  } finally {
+    rmSync(filePath, { force: true });
+  }
+});
+
+test("only converts TUI interactive input", async () => {
   const filePath = writeClipboardImage("png", PNG_BYTES);
   try {
     const harness = createHarness();
@@ -433,7 +539,7 @@ test("only converts TUI interactive idle input", async () => {
     assert.deepEqual(
       await harness.handler(
         { type: "input", source: "interactive", text: filePath, streamingBehavior: "steer" },
-        harness.ctx,
+        printCtx,
       ),
       { action: "continue" },
     );
