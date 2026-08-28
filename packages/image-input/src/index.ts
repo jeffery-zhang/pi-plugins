@@ -121,8 +121,13 @@ export function isSupportedImageSignature(bytes: Uint8Array, mimeType: string): 
   }
 }
 
-function replaceOccurrence(text: string, occurrence: ClipboardImageOccurrence): string {
-  return `${text.slice(0, occurrence.start)}${IMAGE_MARKER}${text.slice(occurrence.end)}`;
+function replaceOccurrences(text: string, occurrences: ClipboardImageOccurrence[]): string {
+  let transformed = text;
+  for (let index = occurrences.length - 1; index >= 0; index--) {
+    const occurrence = occurrences[index]!;
+    transformed = `${transformed.slice(0, occurrence.start)}${IMAGE_MARKER}${transformed.slice(occurrence.end)}`;
+  }
+  return transformed;
 }
 
 async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<InputEventResult> {
@@ -131,34 +136,41 @@ async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<In
   }
 
   const occurrences = findClipboardImageOccurrences(event.text);
-  if (occurrences.length !== 1) {
-    return { action: "continue" };
-  }
-
-  const occurrence = occurrences[0];
-  const mimeType = clipboardPathToMimeType(occurrence.path);
-  if (!mimeType) {
+  if (occurrences.length === 0) {
     return { action: "continue" };
   }
 
   try {
-    const bytes = await readFile(occurrence.path, { signal: ctx.signal });
-    if (!isSupportedImageSignature(bytes, mimeType)) {
-      return { action: "continue" };
+    const normalizedByPath = new Map<string, FlatImageContent>();
+    const images: FlatImageContent[] = [];
+    for (const occurrence of occurrences) {
+      let image = normalizedByPath.get(occurrence.path);
+      if (!image) {
+        const mimeType = clipboardPathToMimeType(occurrence.path);
+        if (!mimeType) {
+          return { action: "continue" };
+        }
+        const bytes = await readFile(occurrence.path, { signal: ctx.signal });
+        if (!isSupportedImageSignature(bytes, mimeType)) {
+          return { action: "continue" };
+        }
+        const resized = await resizeImage(bytes, mimeType);
+        if (!resized) {
+          return { action: "continue" };
+        }
+        image = {
+          type: "image",
+          data: resized.data,
+          mimeType: resized.mimeType,
+        };
+        normalizedByPath.set(occurrence.path, image);
+      }
+      images.push(image);
     }
-    const resized = await resizeImage(bytes, mimeType);
-    if (!resized) {
-      return { action: "continue" };
-    }
-    const image: FlatImageContent = {
-      type: "image",
-      data: resized.data,
-      mimeType: resized.mimeType,
-    };
     return {
       action: "transform",
-      text: replaceOccurrence(event.text, occurrence),
-      images: event.images ? [...event.images, image] : [image],
+      text: replaceOccurrences(event.text, occurrences),
+      images: event.images ? [...event.images, ...images] : images,
     };
   } catch {
     return { action: "continue" };

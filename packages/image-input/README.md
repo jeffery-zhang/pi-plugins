@@ -6,10 +6,10 @@ Pi TUI Clipboard Image Attachment Bridge for Pi 0.84.3 and newer.
 
 - Pi native TUI editor remains the editor; this extension does not call `setEditorComponent()`.
 - Pi continues to own clipboard access and writes the pasted image path into the editor.
-- On an idle interactive TUI `input` event, one canonical clipboard image path is read, validated by content signature, normalized with Pi's public `resizeImage()` defaults, replaced by `[Image]`, and appended as a flat image attachment.
-- Existing `event.images` are preserved first; the plugin image follows.
+- On an idle interactive TUI `input` event, every canonical clipboard image path is read, validated by content signature, normalized with Pi's public `resizeImage()` defaults, replaced in place by `[Image]`, and appended as a flat image attachment in occurrence order.
+- Existing `event.images` are preserved first; plugin images follow in occurrence order.
+- Repeated paths produce repeated markers and attachments. Their normalized data may be reused within the submission, but attachments are not deduplicated.
 - GIF paths, ordinary paths, noncanonical paths, and handwritten `[Image]` text pass through unchanged.
-- If an input contains more than one eligible path, issue 01 leaves the whole input unchanged to avoid partial conversion.
 
 ## Path Contract
 

@@ -259,28 +259,58 @@ test("passes through GIF, ordinary paths, noncanonical paths, and handwritten ma
   rmSync(gifPath, { force: true });
 });
 
-test("does not partially convert multiple eligible occurrences in issue 01", async () => {
+test("converts every eligible occurrence in order and preserves existing images first", async () => {
   const first = writeClipboardImage("png", PNG_BYTES);
   const second = writeClipboardImage("jpg", JPEG_BYTES);
+  const gif = writeClipboardImage("gif", GIF_BYTES);
+  const ordinary = join(tmpdir(), "ordinary-image.png");
+  const existing = { type: "image" as const, data: "existing-data", mimeType: "image/png" };
   try {
     const harness = createHarness();
-    assert.deepEqual(
+    const result = assertTransform(
       await harness.handler(
-        { type: "input", source: "interactive", text: `${first} ${second}` },
+        {
+          type: "input",
+          source: "interactive",
+          text: `First ${first}; handwritten [Image]; second ${second}; gif ${gif}; ordinary ${ordinary}`,
+          images: [existing],
+        },
         harness.ctx,
       ),
-      { action: "continue" },
     );
-    assert.deepEqual(
-      await harness.handler(
-        { type: "input", source: "interactive", text: `${first} ${first}` },
-        harness.ctx,
-      ),
-      { action: "continue" },
+    assert.equal(
+      result.text,
+      `First [Image]; handwritten [Image]; second [Image]; gif ${gif}; ordinary ${ordinary}`,
     );
+    assert.ok(result.images);
+    assert.equal(result.images.length, 3);
+    assert.equal(result.images[0], existing);
+    assert.equal(result.images[1]?.type, "image");
+    assert.equal(result.images[1]?.mimeType, "image/png");
+    assert.equal(result.images[2]?.type, "image");
+    assert.equal(result.images[2]?.mimeType, "image/jpeg");
   } finally {
     rmSync(first, { force: true });
     rmSync(second, { force: true });
+    rmSync(gif, { force: true });
+  }
+});
+
+test("repeated clipboard paths produce one marker and attachment per occurrence", async () => {
+  const filePath = writeClipboardImage("webp", WEBP_BYTES);
+  try {
+    const harness = createHarness();
+    const result = assertTransform(
+      await harness.handler(
+        { type: "input", source: "interactive", text: `${filePath} then ${filePath}` },
+        harness.ctx,
+      ),
+    );
+    assert.equal(result.text, "[Image] then [Image]");
+    assert.equal(result.images?.length, 2);
+    assert.deepEqual(result.images?.[0], result.images?.[1]);
+  } finally {
+    rmSync(filePath, { force: true });
   }
 });
 
