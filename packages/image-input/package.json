@@ -1,0 +1,20 @@
+{
+  "name": "@pi-plugins/image-input",
+  "private": true,
+  "type": "module",
+  "description": "Pi TUI clipboard image attachment bridge",
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types test/bridge.test.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@types/node": "26.3.0",
+    "typescript": "^5.9.3"
+  }
+}
