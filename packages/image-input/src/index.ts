@@ -195,11 +195,14 @@ async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<In
   if (occurrences.length === 0) {
     return { action: "continue" };
   }
-  if (event.streamingBehavior !== undefined || !ctx.isIdle()) {
+  const streamingBehavior = event.streamingBehavior;
+  const hasNativeDeliveryPath =
+    ctx.isIdle() || streamingBehavior === "steer" || streamingBehavior === "followUp";
+  if (!hasNativeDeliveryPath) {
     return restoreImageDraft(
       ctx,
       event.text,
-      "Clipboard images can only be submitted while Pi is idle; the draft was restored",
+      "Clipboard images cannot be submitted in the current Pi state; the draft was restored",
     );
   }
 
@@ -291,7 +294,7 @@ export function createImageInputExtension(version: string = VERSION) {
         }
         if (ctx.hasUI) {
           try {
-            ctx.ui.notify("Clipboard images can only be submitted while Pi is idle", "warning");
+            ctx.ui.notify("Clipboard images cannot be submitted during compaction", "warning");
           } catch {
             // Feedback failure must not release the image draft into the compaction queue.
           }

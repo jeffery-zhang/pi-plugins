@@ -1,6 +1,6 @@
 # Image Input
 
-Image Input converts Pi-native TUI clipboard image paths into image attachments when a user submits an idle draft. It leaves editor presentation and platform clipboard behavior to Pi.
+Image Input converts Pi-native TUI clipboard image paths into image attachments when a user submits an idle, `steer`, or `followUp` draft. It leaves editor presentation, platform clipboard behavior, and queued-message scheduling to Pi.
 
 ## Language
 

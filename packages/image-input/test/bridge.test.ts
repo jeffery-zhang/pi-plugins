@@ -530,29 +530,197 @@ test("UI failures cannot make image processing fail open", async () => {
   );
 });
 
-test("blocks and restores streaming image input while text-only input passes through", async () => {
-  const filePath = writeClipboardImage("png", PNG_BYTES);
+test("converts image drafts through idle, steer, and follow-up delivery paths", async () => {
+  const first = writeClipboardImage("png", PNG_BYTES);
+  const second = writeClipboardImage("jpg", JPEG_BYTES);
+  const existing = { type: "image" as const, data: "existing-data", mimeType: "image/webp" };
+  try {
+    for (const streamingBehavior of [undefined, "steer", "followUp"] as const) {
+      const harness = createHarness();
+      const ctx = {
+        ...harness.ctx,
+        isIdle: () => streamingBehavior === undefined,
+      } as ExtensionContext;
+      const result = assertTransform(
+        await harness.handler(
+          {
+            type: "input",
+            source: "interactive",
+            text: `First ${first}; repeat ${first}; second ${second}`,
+            images: [existing],
+            streamingBehavior,
+          },
+          ctx,
+        ),
+      );
+      assert.equal(result.text, "First [Image]; repeat [Image]; second [Image]");
+      assert.equal(result.images?.length, 4);
+      assert.equal(result.images?.[0], existing);
+      assert.equal(result.images?.[1]?.mimeType, "image/png");
+      assert.deepEqual(result.images?.[1], result.images?.[2]);
+      assert.equal(result.images?.[3]?.mimeType, "image/jpeg");
+      assert.deepEqual(harness.editorTexts, []);
+      assert.deepEqual(harness.notifications, []);
+    }
+  } finally {
+    rmSync(first, { force: true });
+    rmSync(second, { force: true });
+  }
+});
+
+test("multiple queued transforms remain independent on one extension instance", async () => {
+  const first = writeClipboardImage("png", PNG_BYTES);
+  const second = writeClipboardImage("webp", WEBP_BYTES);
   try {
     const harness = createHarness();
+    const ctx = { ...harness.ctx, isIdle: () => false } as ExtensionContext;
+    const steer = assertTransform(
+      await harness.handler(
+        {
+          type: "input",
+          source: "interactive",
+          text: `Steer ${first} and ${first}`,
+          streamingBehavior: "steer",
+        },
+        ctx,
+      ),
+    );
+    const followUp = assertTransform(
+      await harness.handler(
+        {
+          type: "input",
+          source: "interactive",
+          text: `Follow up ${second}`,
+          streamingBehavior: "followUp",
+        },
+        ctx,
+      ),
+    );
+
+    assert.equal(steer.text, "Steer [Image] and [Image]");
+    assert.equal(steer.images?.length, 2);
+    assert.equal(followUp.text, "Follow up [Image]");
+    assert.equal(followUp.images?.length, 1);
+    assert.equal(followUp.images?.[0]?.mimeType, "image/webp");
+    assert.deepEqual(harness.editorTexts, []);
+  } finally {
+    rmSync(first, { force: true });
+    rmSync(second, { force: true });
+  }
+});
+
+test("streaming image failures restore the exact draft and fail closed", async () => {
+  const missing = join(tmpdir(), `pi-clipboard-${randomUUID()}.png`);
+  const mismatched = writeClipboardImage("png", JPEG_BYTES);
+  const malformed = writeClipboardImage(
+    "png",
+    Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  );
+  try {
     for (const streamingBehavior of ["steer", "followUp"] as const) {
-      const text = `Wait for idle ${filePath}`;
+      for (const filePath of [missing, mismatched, malformed]) {
+        const harness = createHarness();
+        const text = `Restore exactly ${filePath}`;
+        const ctx = { ...harness.ctx, isIdle: () => false } as ExtensionContext;
+        assert.deepEqual(
+          await harness.handler(
+            { type: "input", source: "interactive", text, streamingBehavior },
+            ctx,
+          ),
+          { action: "handled" },
+        );
+        assert.deepEqual(harness.editorTexts, [text]);
+        assert.equal(harness.notifications.at(-1)?.type, "error");
+      }
+
+      const unsupportedHarness = createHarness();
+      const unsupportedText = `Unsupported ${mismatched}`;
+      const unsupportedCtx = {
+        ...unsupportedHarness.ctx,
+        isIdle: () => false,
+        model: { input: ["text"] },
+      } as unknown as ExtensionContext;
       assert.deepEqual(
-        await harness.handler(
-          { type: "input", source: "interactive", text, streamingBehavior },
-          harness.ctx,
+        await unsupportedHarness.handler(
+          {
+            type: "input",
+            source: "interactive",
+            text: unsupportedText,
+            streamingBehavior,
+          },
+          unsupportedCtx,
         ),
         { action: "handled" },
       );
-      assert.equal(harness.editorTexts.at(-1), text);
-      assert.match(harness.notifications.at(-1)?.message ?? "", /idle/i);
+      assert.deepEqual(unsupportedHarness.editorTexts, [unsupportedText]);
+
+      const abortedHarness = createHarness();
+      const controller = new AbortController();
+      controller.abort();
+      const abortedText = `Cancelled ${mismatched}`;
+      const abortedCtx = {
+        ...abortedHarness.ctx,
+        isIdle: () => false,
+        signal: controller.signal,
+      } as ExtensionContext;
+      assert.deepEqual(
+        await abortedHarness.handler(
+          { type: "input", source: "interactive", text: abortedText, streamingBehavior },
+          abortedCtx,
+        ),
+        { action: "handled" },
+      );
+      assert.deepEqual(abortedHarness.editorTexts, [abortedText]);
+      assert.match(abortedHarness.notifications.at(-1)?.message ?? "", /cancelled/i);
+
+      const unexpectedHarness = createHarness();
+      const unexpectedText = `Unexpected ${mismatched}`;
+      const unexpectedCtx = {
+        ...unexpectedHarness.ctx,
+        isIdle: () => false,
+      } as ExtensionContext;
+      Object.defineProperty(unexpectedCtx, "model", {
+        get: () => {
+          throw new Error("unexpected model lookup failure");
+        },
+      });
+      assert.deepEqual(
+        await unexpectedHarness.handler(
+          { type: "input", source: "interactive", text: unexpectedText, streamingBehavior },
+          unexpectedCtx,
+        ),
+        { action: "handled" },
+      );
+      assert.deepEqual(unexpectedHarness.editorTexts, [unexpectedText]);
     }
+  } finally {
+    rmSync(mismatched, { force: true });
+    rmSync(malformed, { force: true });
+  }
+});
+
+test("text-only streaming input passes through and non-idle input without a queue path is blocked", async () => {
+  const filePath = writeClipboardImage("png", PNG_BYTES);
+  try {
+    const harness = createHarness();
+    const streamingCtx = { ...harness.ctx, isIdle: () => false } as ExtensionContext;
+    for (const streamingBehavior of ["steer", "followUp"] as const) {
+      assert.deepEqual(
+        await harness.handler(
+          { type: "input", source: "interactive", text: "plain text", streamingBehavior },
+          streamingCtx,
+        ),
+        { action: "continue" },
+      );
+    }
+
+    const text = `No native delivery path ${filePath}`;
     assert.deepEqual(
-      await harness.handler(
-        { type: "input", source: "interactive", text: "plain text", streamingBehavior: "followUp" },
-        harness.ctx,
-      ),
-      { action: "continue" },
+      await harness.handler({ type: "input", source: "interactive", text }, streamingCtx),
+      { action: "handled" },
     );
+    assert.equal(harness.editorTexts.at(-1), text);
+    assert.match(harness.notifications.at(-1)?.message ?? "", /current Pi state/i);
   } finally {
     rmSync(filePath, { force: true });
   }
@@ -571,7 +739,7 @@ test("compaction terminal guard consumes only image-bearing submit keys and rele
     assert.deepEqual(harness.terminalInput?.("\r"), { consume: true });
     assert.deepEqual(harness.terminalInput?.("\x11"), { consume: true });
     assert.equal(harness.editorValue.value, filePath);
-    assert.match(harness.notifications.at(-1)?.message ?? "", /idle/i);
+    assert.match(harness.notifications.at(-1)?.message ?? "", /compaction/i);
 
     harness.editorValue.value = "plain text";
     assert.equal(harness.terminalInput?.("\r"), undefined);
