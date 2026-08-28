@@ -14,8 +14,8 @@ import {
 const MIN_PI_VERSION = "0.84.3";
 const IMAGE_MARKER = "[Image]";
 const UUID_PATTERN = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-const BEFORE_PATH_CHARACTER = /[A-Za-z0-9_.\\/-]/;
-const AFTER_PATH_CHARACTER = /[A-Za-z0-9_\\/-]/;
+const BEFORE_PATH_CHARACTER = /[\p{L}\p{N}_.\\/~:-]/u;
+const AFTER_PATH_CHARACTER = /[\p{L}\p{N}_\\/~:-]/u;
 const SUPPORTED_EXTENSION_PATTERN = "(?:[pP][nN][gG]|[jJ][pP][eE]?[gG]|[wW][eE][bB][pP])";
 
 export interface ClipboardImageOccurrence {
@@ -35,16 +35,43 @@ function escapeRegExp(value: string): string {
 }
 
 export function isSupportedPiVersion(version: string, minimum: string = MIN_PI_VERSION): boolean {
-  const parse = (value: string): number[] =>
-    value.replace(/^v/i, "").split("-")[0]!.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const parse = (value: string): { core: number[]; prerelease: string[] } => {
+    const [core = "", prerelease = ""] = value.replace(/^v/i, "").split("-", 2);
+    return {
+      core: core.split(".").map((part) => Number.parseInt(part, 10) || 0),
+      prerelease: prerelease ? prerelease.split(".") : [],
+    };
+  };
   const current = parse(version);
   const required = parse(minimum);
-  for (let index = 0; index < Math.max(current.length, required.length); index++) {
-    const left = current[index] ?? 0;
-    const right = required[index] ?? 0;
+  for (let index = 0; index < Math.max(current.core.length, required.core.length); index++) {
+    const left = current.core[index] ?? 0;
+    const right = required.core[index] ?? 0;
     if (left !== right) {
       return left > right;
     }
+  }
+  if (current.prerelease.length === 0 || required.prerelease.length === 0) {
+    return current.prerelease.length === 0;
+  }
+  for (let index = 0; index < Math.max(current.prerelease.length, required.prerelease.length); index++) {
+    const left = current.prerelease[index];
+    const right = required.prerelease[index];
+    if (left === undefined || right === undefined) {
+      return right === undefined;
+    }
+    if (left === right) {
+      continue;
+    }
+    const leftNumber = /^\d+$/.test(left) ? Number(left) : undefined;
+    const rightNumber = /^\d+$/.test(right) ? Number(right) : undefined;
+    if (leftNumber !== undefined && rightNumber !== undefined) {
+      return leftNumber > rightNumber;
+    }
+    if (leftNumber !== undefined || rightNumber !== undefined) {
+      return rightNumber !== undefined;
+    }
+    return left > right;
   }
   return true;
 }
@@ -262,7 +289,13 @@ export function createImageInputExtension(version: string = VERSION) {
         if (!isSubmit || findClipboardImageOccurrences(ctx.ui.getEditorText()).length === 0) {
           return undefined;
         }
-        ctx.ui.notify("Clipboard images can only be submitted while Pi is idle", "warning");
+        if (ctx.hasUI) {
+          try {
+            ctx.ui.notify("Clipboard images can only be submitted while Pi is idle", "warning");
+          } catch {
+            // Feedback failure must not release the image draft into the compaction queue.
+          }
+        }
         return { consume: true };
       });
     });

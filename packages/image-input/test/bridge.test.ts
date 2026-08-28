@@ -4,6 +4,7 @@ import { rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import test from "node:test";
+import { deflateSync } from "node:zlib";
 import {
   KeybindingsManager,
   setKeybindings,
@@ -41,6 +42,48 @@ const WEBP_BYTES = Uint8Array.from(
 const GIF_BYTES = Uint8Array.from(
   Buffer.from("R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==", "base64"),
 );
+
+function pngChunk(type: string, data: Uint8Array): Buffer {
+  const typeBytes = Buffer.from(type, "ascii");
+  const body = Buffer.concat([typeBytes, data]);
+  let crc = 0xffffffff;
+  for (const byte of body) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  const chunk = Buffer.alloc(12 + data.length);
+  chunk.writeUInt32BE(data.length, 0);
+  typeBytes.copy(chunk, 4);
+  Buffer.from(data).copy(chunk, 8);
+  chunk.writeUInt32BE((crc ^ 0xffffffff) >>> 0, 8 + data.length);
+  return chunk;
+}
+
+function createRgbaPng(width: number, height: number): Uint8Array {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  const rows = Buffer.alloc((width * 4 + 1) * height);
+  for (let row = 0; row < height; row++) {
+    const offset = row * (width * 4 + 1);
+    rows[offset] = 0;
+    rows.fill(0xff, offset + 1, offset + width * 4 + 1);
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(rows)),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+function pngDimensions(data: string): { width: number; height: number } {
+  const bytes = Buffer.from(data, "base64");
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
 
 interface Harness {
   ctx: ExtensionContext;
@@ -145,12 +188,16 @@ function assertTransform(
   return result as Extract<InputEventResult, { action: "transform" }>;
 }
 
-test("version guard accepts 0.84.3 and newer", () => {
+test("version guard accepts 0.84.3 stable and newer", () => {
   assert.equal(isSupportedPiVersion("0.84.2"), false);
+  assert.equal(isSupportedPiVersion("0.84.3-beta.1"), false);
+  assert.equal(isSupportedPiVersion("v0.84.3"), true);
   assert.equal(isSupportedPiVersion("0.84.3"), true);
-  assert.equal(isSupportedPiVersion("0.84.4"), true);
+  assert.equal(isSupportedPiVersion("0.84.4-alpha.1"), true);
   assert.equal(isSupportedPiVersion("0.85.0"), true);
   assert.equal(isSupportedPiVersion("1.0.0"), true);
+  assert.equal(isSupportedPiVersion("1.2.3-beta.2", "1.2.3-beta.1"), true);
+  assert.equal(isSupportedPiVersion("1.2.3-beta.1", "1.2.3-beta.2"), false);
 });
 
 test("below 0.84.3 stays inert and warns once in TUI", async () => {
@@ -178,6 +225,9 @@ test("recognizes Windows/POSIX canonical paths, temp dir spaces, and safe bounda
   assert.equal(findClipboardImageOccurrences(windowsPath, windowsTemp, "\\").length, 1);
   assert.equal(findClipboardImageOccurrences(`before ${windowsPath} after`, windowsTemp, "\\").length, 1);
   assert.equal(findClipboardImageOccurrences(`x${windowsPath}`, windowsTemp, "\\").length, 0);
+  assert.equal(findClipboardImageOccurrences(`file:${windowsPath}`, windowsTemp, "\\").length, 0);
+  assert.equal(findClipboardImageOccurrences(`~${windowsPath}`, windowsTemp, "\\").length, 0);
+  assert.equal(findClipboardImageOccurrences(`${windowsPath}:stream`, windowsTemp, "\\").length, 0);
   assert.equal(findClipboardImageOccurrences(`${windowsPath}.txt`, windowsTemp, "\\").length, 0);
   assert.equal(findClipboardImageOccurrences(`D:\\other\\${windowsPath}`, windowsTemp, "\\").length, 0);
 
@@ -243,6 +293,29 @@ test("converts a single canonical PNG/JPEG/WebP path to marker and flat image co
     } finally {
       rmSync(filePath, { force: true });
     }
+  }
+});
+
+test("uses Pi default resizing for images wider than 2000 pixels", async () => {
+  const oversized = createRgbaPng(2501, 1);
+  const filePath = writeClipboardImage("png", oversized);
+  try {
+    const harness = createHarness();
+    const result = assertTransform(
+      await harness.handler(
+        { type: "input", source: "interactive", text: filePath },
+        harness.ctx,
+      ),
+    );
+    assert.equal(result.images?.length, 1);
+    const image = result.images?.[0];
+    assert.equal(image?.type, "image");
+    if (!image || image.type !== "image") throw new Error("expected image content");
+    assert.equal(image.mimeType, "image/png");
+    assert.deepEqual(pngDimensions(image.data), { width: 2000, height: 1 });
+    assert.notDeepEqual(Buffer.from(image.data, "base64"), Buffer.from(oversized));
+  } finally {
+    rmSync(filePath, { force: true });
   }
 });
 
@@ -523,27 +596,80 @@ test("compaction terminal guard consumes only image-bearing submit keys and rele
   }
 });
 
-test("only converts TUI interactive input", async () => {
+test("compaction guard remains fail-closed when feedback is unavailable", async () => {
   const filePath = writeClipboardImage("png", PNG_BYTES);
   try {
-    const harness = createHarness();
-    const printCtx = { ...harness.ctx, mode: "print", hasUI: false } as unknown as ExtensionContext;
-    assert.deepEqual(
-      await harness.handler({ type: "input", source: "interactive", text: filePath }, printCtx),
-      { action: "continue" },
-    );
-    assert.deepEqual(
-      await harness.handler({ type: "input", source: "rpc", text: filePath }, harness.ctx),
-      { action: "continue" },
-    );
-    assert.deepEqual(
-      await harness.handler(
-        { type: "input", source: "interactive", text: filePath, streamingBehavior: "steer" },
-        printCtx,
-      ),
-      { action: "continue" },
-    );
+    for (const hasUI of [true, false]) {
+      const harness = createHarness();
+      const ctx = {
+        ...harness.ctx,
+        hasUI,
+        ui: {
+          ...harness.ctx.ui,
+          notify: () => {
+            throw new Error("notification unavailable");
+          },
+        },
+      } as ExtensionContext;
+      await harness.sessionStart?.({ type: "session_start", reason: "startup" }, ctx);
+      harness.editorValue.value = filePath;
+      await harness.sessionBeforeCompact?.({ type: "session_before_compact" }, ctx);
+      assert.deepEqual(harness.terminalInput?.("\r"), { consume: true });
+      assert.equal(harness.editorValue.value, filePath);
+      await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, ctx);
+    }
   } finally {
     rmSync(filePath, { force: true });
   }
+});
+
+test("isolates non-TUI sources and preserves existing payloads", async () => {
+  const filePath = writeClipboardImage("png", PNG_BYTES);
+  const existing = [{ type: "image" as const, data: "rpc-image", mimeType: "image/jpeg" }];
+  try {
+    const harness = createHarness();
+    const cases: Array<{ mode: ExtensionContext["mode"]; source: InputEvent["source"]; streamingBehavior?: "steer" | "followUp" }> = [
+      { mode: "rpc", source: "rpc" },
+      { mode: "rpc", source: "rpc", streamingBehavior: "steer" },
+      { mode: "rpc", source: "rpc", streamingBehavior: "followUp" },
+      { mode: "tui", source: "extension" },
+      { mode: "json", source: "interactive" },
+      { mode: "print", source: "interactive" },
+    ];
+    for (const scenario of cases) {
+      const ctx = {
+        ...harness.ctx,
+        mode: scenario.mode,
+        hasUI: scenario.mode === "tui" || scenario.mode === "rpc",
+      } as ExtensionContext;
+      const event: InputEvent = {
+        type: "input",
+        source: scenario.source,
+        text: filePath,
+        images: existing,
+        streamingBehavior: scenario.streamingBehavior,
+      };
+      assert.deepEqual(await harness.handler(event, ctx), { action: "continue" });
+    }
+    assert.deepEqual(harness.editorTexts, []);
+    assert.deepEqual(harness.notifications, []);
+  } finally {
+    rmSync(filePath, { force: true });
+  }
+});
+
+test("preserves CLI-style files, existing images, and unknown markers", async () => {
+  const harness = createHarness();
+  const existing = [{ type: "image" as const, data: "cli-image", mimeType: "image/png" }];
+  for (const text of ["@./image.png", "C:\\images\\photo.jpg", "[Image] [Image 2]"]) {
+    assert.deepEqual(
+      await harness.handler(
+        { type: "input", source: "interactive", text, images: existing },
+        harness.ctx,
+      ),
+      { action: "continue" },
+    );
+  }
+  assert.deepEqual(harness.editorTexts, []);
+  assert.deepEqual(harness.notifications, []);
 });
