@@ -1,14 +1,30 @@
 {
   "name": "@jingoz/pi-win-notify",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "description": "Windows-only Pi TUI task completion Toast",
+  "keywords": ["pi", "pi-package", "notification", "toast", "windows", "tui"],
+  "license": "MIT",
+  "files": ["src", "LICENSE", "README.md"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeffery-zhang/pi-plugins.git",
+    "directory": "packages/win-notify"
+  },
+  "homepage": "https://github.com/jeffery-zhang/pi-plugins/tree/main/packages/win-notify",
+  "bugs": {
+    "url": "https://github.com/jeffery-zhang/pi-plugins/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "pi": {
     "extensions": ["./src/index.ts"]
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types test/windows-toast.test.ts"
+    "test": "node --test --experimental-strip-types test/windows-toast.test.ts",
+    "prepublishOnly": "pnpm run check && pnpm run test"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

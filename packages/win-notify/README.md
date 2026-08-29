@@ -2,6 +2,12 @@
 
 A Windows-only Pi TUI extension that sends one Windows Toast when Pi has fully settled and is ready for input.
 
+## Install
+
+```bash
+pi install npm:@jingoz/pi-win-notify
+```
+
 ## Behavior
 
 - Listens to Pi's `agent_settled` event, so automatic retries, compaction retries, and queued continuations do not cause premature notifications.

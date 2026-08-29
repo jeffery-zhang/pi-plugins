@@ -8,7 +8,7 @@
 
 Spec: [Windows Toast Task Completion Notification](../spec.md)
 
-- [x] The private ESM package is named `@jingoz/pi-win-notify` and loads through its explicit extension entry without third-party runtime dependencies.
+- [x] The ESM package is named `@jingoz/pi-win-notify` and loads through its explicit extension entry without third-party runtime dependencies.
 - [x] Each Windows TUI `agent_settled` event requests exactly one Toast displaying `Pi` and `Task completed · <当前目录名>`.
 - [x] Multiple Pi processes operate independently and no cross-process coordination, deduplication or shared state is introduced.
 - [x] Prompts, responses, session names, full paths, process IDs, timestamps and other details never enter the notification.
@@ -21,7 +21,7 @@ Spec: [Windows Toast Task Completion Notification](../spec.md)
 
 ## Answer
 
-Implemented `@jingoz/pi-win-notify` as a private ESM Pi package with one `agent_settled` handler. Windows TUI sessions invoke the Windows Runtime Toast API through `powershell.exe`; other platforms and modes remain inert. The application identity is fixed to `Pi`, and the single text payload is `Task completed · <current directory basename>`. UTF-8 Base64 transport keeps PowerShell-sensitive directory names out of the generated script syntax. Failures are contained without another notification path.
+Implemented `@jingoz/pi-win-notify` as an ESM Pi package with one `agent_settled` handler. Windows TUI sessions invoke the Windows Runtime Toast API through `powershell.exe`; other platforms and modes remain inert. The application identity is fixed to `Pi`, and the single text payload is `Task completed · <current directory basename>`. UTF-8 Base64 transport keeps PowerShell-sensitive directory names out of the generated script syntax. Failures are contained without another notification path.
 
 Validation passed:
 
@@ -33,4 +33,8 @@ Validation passed:
 - Strict Windows Runtime smoke with PowerShell errors promoted to terminating errors (exit 0)
 - Windows notification history returned the active `Pi` Toast after the smoke
 
-No package installation, publication or fallback notification mechanism was added.
+No package installation or fallback notification mechanism was added.
+
+## Comments
+
+- Follow-up publication preparation set the first release to `0.1.0`, added npm package metadata and removed `private` after the user initiated publishing.
