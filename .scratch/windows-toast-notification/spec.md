@@ -23,7 +23,7 @@ Pi 用户可能同时在多个终端中运行长任务。任务完成时，如�
 
 ## Implementation Decisions
 
-- The feature is an independent private ESM Pi package with an explicit extension entry and Pi's coding-agent package as a peer dependency.
+- The feature is an independent private ESM Pi package named `@jingoz/pi-win-notify`, with an explicit extension entry and Pi's coding-agent package as a peer dependency.
 - The extension listens to `agent_settled`, not `agent_end`, because Pi may still retry, compact or deliver queued continuations after a low-level agent run ends.
 - Notifications are emitted only when `process.platform` is `win32` and the extension context mode is `tui`.
 - Each `agent_settled` event emits one Toast. There is no duration threshold, focus detection, debounce or cross-process coordination.
