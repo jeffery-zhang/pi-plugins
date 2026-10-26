@@ -1,0 +1,54 @@
+{
+  "name": "pi-purge",
+  "version": "0.2.3",
+  "description": "pi extension: switch a session between pi's stock system prompt, a trimmed variant, and a bundled or custom persona prompt - for prompt-engineering experiments",
+  "type": "module",
+  "license": "MIT",
+  "author": "ZiChuanLan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZiChuanLan/pi-purge.git"
+  },
+  "homepage": "https://github.com/ZiChuanLan/pi-purge#readme",
+  "bugs": {
+    "url": "https://github.com/ZiChuanLan/pi-purge/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi-coding-agent",
+    "pi",
+    "system-prompt",
+    "prompt-engineering",
+    "prompt-evaluation"
+  ],
+  "files": [
+    "extensions",
+    "test",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node test/pi-purge.test.mjs && node test/pi-purge-env-source.test.mjs"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.80.0 <2"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/pi-purge.ts"
+    ]
+  }
+}

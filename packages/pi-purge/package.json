@@ -1,0 +1,53 @@
+{
+  "name": "@jingoz/pi-purge",
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types test/purge.test.ts test/host.test.ts",
+    "smoke": "node --experimental-strip-types test/local-smoke.ts",
+    "prepublishOnly": "pnpm run check && pnpm run test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@types/node": "26.3.0",
+    "typescript": "^5.9.3"
+  },
+  "version": "0.1.0",
+  "description": "Self-contained Pi prompt extension with bundled instructions, request summaries, and native tool/project/skill preservation",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "prompt",
+    "persona"
+  ],
+  "license": "SEE LICENSE IN THIRD_PARTY_NOTICES.md",
+  "files": [
+    "src",
+    "prompts",
+    "CONTEXT.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "third-party",
+    "README.md"
+  ],
+  "repository": {
+    "url": "git+https://github.com/jeffery-zhang/pi-plugins.git",
+    "directory": "packages/pi-purge",
+    "type": "git"
+  },
+  "homepage": "https://github.com/jeffery-zhang/pi-plugins/tree/main/packages/pi-purge",
+  "bugs": {
+    "url": "https://github.com/jeffery-zhang/pi-plugins/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

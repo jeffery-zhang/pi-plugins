@@ -1,0 +1,3 @@
+# Preserve vendored evidence and the validated prompt byte for byte.
+docs/research/pi-purge-sources/** -text -whitespace
+packages/pi-purge/prompts/default.md -text -whitespace
