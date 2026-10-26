@@ -4,6 +4,7 @@ import { basename, extname, sep } from "node:path";
 import { getKeybindings } from "@earendil-works/pi-tui";
 import {
   VERSION,
+  CustomEditor,
   resizeImage,
   type ExtensionAPI,
   type ExtensionContext,
@@ -12,7 +13,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 const MIN_PI_VERSION = "0.84.3";
-const IMAGE_MARKER = "`[Image]`";
 const UUID_PATTERN = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 const BEFORE_PATH_CHARACTER = /[\p{L}\p{N}_.\\/~:-]/u;
 const AFTER_PATH_CHARACTER = /[\p{L}\p{N}_\\/~:-]/u;
@@ -149,11 +149,16 @@ export function isSupportedImageSignature(bytes: Uint8Array, mimeType: string): 
   }
 }
 
-function replaceOccurrences(text: string, occurrences: ClipboardImageOccurrence[]): string {
+function replaceOccurrences(
+  text: string,
+  occurrences: ClipboardImageOccurrence[],
+  markerForPath: (path: string) => string,
+): string {
+  const markers = occurrences.map(({ path }) => markerForPath(path));
   let transformed = text;
   for (let index = occurrences.length - 1; index >= 0; index--) {
     const occurrence = occurrences[index]!;
-    transformed = `${transformed.slice(0, occurrence.start)}${IMAGE_MARKER}${transformed.slice(occurrence.end)}`;
+    transformed = `${transformed.slice(0, occurrence.start)}${markers[index]}${transformed.slice(occurrence.end)}`;
   }
   return transformed;
 }
@@ -186,12 +191,16 @@ function failureMessage(error: unknown, filePath?: string): string {
   return `Could not attach${target}; the draft was restored`;
 }
 
-async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<InputEventResult> {
+async function handleInput(
+  event: InputEvent,
+  ctx: ExtensionContext,
+  markerForPath: (path: string) => string,
+  occurrences: ClipboardImageOccurrence[],
+): Promise<InputEventResult> {
   if (ctx.mode !== "tui" || event.source !== "interactive") {
     return { action: "continue" };
   }
 
-  const occurrences = findClipboardImageOccurrences(event.text);
   if (occurrences.length === 0) {
     return { action: "continue" };
   }
@@ -247,7 +256,7 @@ async function handleInput(event: InputEvent, ctx: ExtensionContext): Promise<In
     }
     return {
       action: "transform",
-      text: replaceOccurrences(event.text, occurrences),
+      text: replaceOccurrences(event.text, occurrences, markerForPath),
       images: event.images ? [...event.images, ...images] : images,
     };
   } catch (error) {
@@ -269,6 +278,42 @@ export function createImageInputExtension(version: string = VERSION) {
     }
     let compactionActive = false;
     let unsubscribeTerminalInput: (() => void) | undefined;
+    let restoreEditor: (() => void) | undefined;
+    let nextImageId = 1;
+    const markersByPath = new Map<string, string>();
+    const pathsByMarker = new Map<string, string>();
+
+    const markerForPath = (path: string): string => {
+      let marker = markersByPath.get(path);
+      if (!marker) {
+        marker = `[Image ${nextImageId++}]`;
+        markersByPath.set(path, marker);
+        pathsByMarker.set(marker, path);
+        // Old markers must not refer to a different image after /reload.
+        pi.appendEntry("image-input", { nextImageId });
+      }
+      return marker;
+    };
+    const showMarkers = (text: string): string =>
+      replaceOccurrences(text, findClipboardImageOccurrences(text), markerForPath);
+    const expandMarkers = (text: string): string =>
+      text.replace(/\[Image \d+\]/g, (marker) => pathsByMarker.get(marker) ?? marker);
+    const findDraftImages = (text: string): ClipboardImageOccurrence[] => {
+      const occurrences = findClipboardImageOccurrences(text);
+      for (const match of text.matchAll(/\[Image \d+\]/g)) {
+        const path = pathsByMarker.get(match[0]);
+        if (path) occurrences.push({ path, start: match.index, end: match.index + match[0].length });
+      }
+      return occurrences.sort((left, right) => left.start - right.start);
+    };
+
+    const stopEditor = (): void => {
+      restoreEditor?.();
+      restoreEditor = undefined;
+      markersByPath.clear();
+      pathsByMarker.clear();
+      nextImageId = 1;
+    };
 
     const stopTerminalGuard = (): void => {
       unsubscribeTerminalInput?.();
@@ -278,9 +323,47 @@ export function createImageInputExtension(version: string = VERSION) {
     pi.on("session_start", (_event, ctx) => {
       compactionActive = false;
       stopTerminalGuard();
+      stopEditor();
       if (ctx.mode !== "tui") {
         return;
       }
+      for (const entry of ctx.sessionManager?.getEntries() ?? []) {
+        if (entry.type !== "custom" || entry.customType !== "image-input") continue;
+        const candidate = (entry.data as { nextImageId?: unknown } | undefined)?.nextImageId;
+        if (typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate > nextImageId) {
+          nextImageId = candidate;
+        }
+      }
+      const previousFactory = ctx.ui.getEditorComponent();
+      let unwrapEditor: (() => void) | undefined;
+      const factory: NonNullable<ReturnType<typeof ctx.ui.getEditorComponent>> = (...args) => {
+        unwrapEditor?.();
+        const editor = previousFactory?.(...args) ?? new CustomEditor(...args);
+        const original = {
+          setText: editor.setText,
+          insertTextAtCursor: editor.insertTextAtCursor,
+          getExpandedText: editor.getExpandedText,
+          addToHistory: editor.addToHistory,
+        };
+        editor.setText = (text) => original.setText.call(editor, showMarkers(text));
+        if (original.insertTextAtCursor) {
+          editor.insertTextAtCursor = (text) => original.insertTextAtCursor!.call(editor, showMarkers(text));
+        }
+        editor.getExpandedText = () =>
+          showMarkers(original.getExpandedText?.call(editor) ?? editor.getText());
+        if (original.addToHistory) {
+          editor.addToHistory = (text) => original.addToHistory!.call(editor, showMarkers(text));
+        }
+        unwrapEditor = () => { Object.assign(editor, original); };
+        return editor;
+      };
+      ctx.ui.setEditorComponent(factory);
+      restoreEditor = () => {
+        const draft = expandMarkers(ctx.ui.getEditorText());
+        unwrapEditor?.();
+        if (ctx.ui.getEditorComponent() === factory) ctx.ui.setEditorComponent(previousFactory);
+        ctx.ui.setEditorText(draft);
+      };
       unsubscribeTerminalInput = ctx.ui.onTerminalInput((data) => {
         if (!compactionActive) {
           return undefined;
@@ -289,7 +372,7 @@ export function createImageInputExtension(version: string = VERSION) {
         const isSubmit =
           keybindings.matches(data, "tui.input.submit") ||
           keybindings.matches(data, "app.message.followUp" as "tui.input.submit");
-        if (!isSubmit || findClipboardImageOccurrences(ctx.ui.getEditorText()).length === 0) {
+        if (!isSubmit || findDraftImages(ctx.ui.getEditorText()).length === 0) {
           return undefined;
         }
         if (ctx.hasUI) {
@@ -314,8 +397,14 @@ export function createImageInputExtension(version: string = VERSION) {
     pi.on("session_shutdown", () => {
       compactionActive = false;
       stopTerminalGuard();
+      stopEditor();
     });
-    pi.on("input", handleInput);
+    pi.on("input", (event, ctx) => handleInput(
+      event,
+      ctx,
+      markerForPath,
+      ctx.mode === "tui" && event.source === "interactive" ? findDraftImages(event.text) : [],
+    ));
   };
 }
 

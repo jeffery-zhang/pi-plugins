@@ -2,6 +2,10 @@
 
 Status: ready-for-agent
 
+## 2026-10-26: Numbered editor markers
+
+The user's new requirement supersedes this document's earlier restrictions on custom editors, unnumbered markers, and marker recovery. Clipboard images now display as `[Image N]` during editing and submission. The editor factory is composed with the existing factory; official `@ff-labs/pi-fff@0.11.0` now uses `addAutocompleteProvider` instead of the historical `FffEditor`, removing the earlier factory conflict. Only the next number is persisted; clipboard paths remain in memory. Current behavior and verification are documented in `packages/image-input/README.md`.
+
 ## Problem Statement
 
 Pi 的 TUI 在用户粘贴图片时，会把剪贴板图片写入本地临时文件，并将路径插入 editor。Image Input 已能在 Pi idle 时把该路径转换为同一条 user message 中的 Image Attachment，但 Pi streaming 时的 `steer` 和 `followUp` 仍会被扩展阻止。

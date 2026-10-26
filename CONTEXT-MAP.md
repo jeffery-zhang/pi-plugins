@@ -3,7 +3,7 @@
 ## Contexts
 
 - [OA Compaction](./packages/native-compaction/CONTEXT.md): integrates a Compact-Compatible Upstream while preserving portable Pi session behavior.
-- [Image Input](./packages/image-input/CONTEXT.md): converts Pi-native TUI clipboard image paths into image attachments at submission.
+- [Image Input](./packages/image-input/CONTEXT.md): presents clipboard images as numbered markers during editing and delivers image attachments at submission.
 - [Pi Purge](./packages/pi-purge/CONTEXT.md): adjusts model behavior in user-defined content scenarios while preserving Pi coding capabilities; DS is the first required validation target.
 
 ## Relationships

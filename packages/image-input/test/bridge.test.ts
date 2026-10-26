@@ -7,9 +7,14 @@ import test from "node:test";
 import { deflateSync } from "node:zlib";
 import {
   KeybindingsManager,
+  getKeybindings,
   setKeybindings,
   TUI_KEYBINDINGS,
+  type EditorComponent,
+  type EditorTheme,
+  type TUI,
 } from "@earendil-works/pi-tui";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -100,7 +105,13 @@ interface Harness {
   editorValue: { value: string };
   getUnsubscribeCount: () => number;
   calls: string[];
+  editor?: EditorComponent;
+  entries: Array<{ type: "custom"; customType: string; data: { nextImageId: number } }>;
 }
+
+type EditorFactory = NonNullable<Parameters<ExtensionContext["ui"]["setEditorComponent"]>[0]>;
+const editorTui = { terminal: { rows: 40 }, requestRender() {} } as unknown as TUI;
+const editorTheme = { borderColor: (text: string) => text, selectList: {} } as EditorTheme;
 
 function createHarness(version = "0.84.3"): Harness {
   setKeybindings(
@@ -116,12 +127,18 @@ function createHarness(version = "0.84.3"): Harness {
   let terminalInput: Harness["terminalInput"];
   let unsubscribeCount = 0;
   const calls: string[] = [];
+  const entries: Harness["entries"] = [];
+  let editor: EditorComponent | undefined;
+  let editorFactory: EditorFactory | undefined;
   const fakePi = {
     on: (event: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(event, handler);
     },
     setEditorComponent: () => {
       calls.push("setEditorComponent");
+    },
+    appendEntry: (customType: string, data: { nextImageId: number }) => {
+      entries.push({ type: "custom", customType, data });
     },
   } as unknown as ExtensionAPI;
   const ctx = {
@@ -131,6 +148,7 @@ function createHarness(version = "0.84.3"): Harness {
     model: { input: ["text", "image"] },
     isIdle: () => true,
     cwd: process.cwd(),
+    sessionManager: { getEntries: () => entries },
     ui: {
       notify: (message: string, type?: string) => {
         notifications.push({ message, type });
@@ -138,8 +156,18 @@ function createHarness(version = "0.84.3"): Harness {
       setEditorText: (text: string) => {
         editorTexts.push(text);
         editorValue.value = text;
+        editor?.setText(text);
       },
-      getEditorText: () => editorValue.value,
+      getEditorText: () => editor?.getExpandedText?.() ?? editor?.getText() ?? editorValue.value,
+      getEditorComponent: () => editorFactory,
+      setEditorComponent: (factory: EditorFactory | undefined) => {
+        calls.push("setEditorComponent");
+        const text = editor?.getText() ?? editorValue.value;
+        editorFactory = factory;
+        editor = factory?.(editorTui, editorTheme, getKeybindings() as Parameters<EditorFactory>[2]);
+        editor?.setText(text);
+        editorValue.value = text;
+      },
       onTerminalInput: (handler: Harness["terminalInput"]) => {
         terminalInput = handler;
         return () => {
@@ -171,6 +199,8 @@ function createHarness(version = "0.84.3"): Harness {
     editorValue,
     getUnsubscribeCount: () => unsubscribeCount,
     calls,
+    entries,
+    get editor() { return editor; },
   };
 }
 
@@ -187,6 +217,129 @@ function assertTransform(
   assert.equal(result.action, "transform");
   return result as Extract<InputEventResult, { action: "transform" }>;
 }
+
+test("clipboard images are numbered in the editor before submission and keep their attachments", async () => {
+  const filePath = writeClipboardImage("png", PNG_BYTES);
+  try {
+    const harness = createHarness();
+    await harness.sessionStart?.({ type: "session_start", reason: "startup" }, harness.ctx);
+    assert.ok(harness.editor);
+    harness.editor.insertTextAtCursor?.(`Review ${filePath}`);
+    assert.equal(harness.editor.getText(), "Review [Image 1]");
+    assert.equal(harness.editor.getExpandedText?.(), "Review [Image 1]");
+    assert.ok(!harness.editor.render(80).join("\n").includes(filePath));
+    const result = assertTransform(await harness.handler(
+      { type: "input", source: "interactive", text: harness.editor.getText() }, harness.ctx,
+    ));
+    assert.equal(result.text, "Review [Image 1]");
+    assert.equal(result.images?.length, 1);
+    assert.equal(result.images[0]?.mimeType, "image/png");
+    harness.ctx.ui.setEditorText(`Review ${filePath}`);
+    assert.equal(harness.editor.getText(), "Review [Image 1]");
+    await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, harness.ctx);
+    assert.equal(harness.ctx.ui.getEditorText(), `Review ${filePath}`);
+  } finally {
+    rmSync(filePath, { force: true });
+  }
+});
+
+test("image presentation composes with an existing editor and restores its factory", async () => {
+  const harness = createHarness();
+  const existing = new CustomEditor(editorTui, editorTheme, getKeybindings() as Parameters<EditorFactory>[2]);
+  const submit = () => {};
+  existing.onSubmit = submit;
+  const previousFactory: EditorFactory = () => existing;
+  harness.ctx.ui.setEditorComponent(previousFactory);
+  await harness.sessionStart?.({ type: "session_start", reason: "startup" }, harness.ctx);
+  assert.equal(harness.editor, existing);
+  assert.equal(harness.editor.onSubmit, submit);
+  assert.notEqual(harness.ctx.ui.getEditorComponent(), previousFactory);
+  const filePath = join(tmpdir(), `pi-clipboard-${randomUUID()}.png`);
+  harness.editor.insertTextAtCursor?.(filePath);
+  assert.equal(harness.editor.getText(), "[Image 1]");
+  await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, harness.ctx);
+  assert.equal(harness.ctx.ui.getEditorComponent(), previousFactory);
+  assert.equal(harness.ctx.ui.getEditorText(), filePath);
+});
+
+test("shutdown never replaces an editor installed later by another extension", async () => {
+  const harness = createHarness();
+  await harness.sessionStart?.({ type: "session_start", reason: "startup" }, harness.ctx);
+  const laterFactory: EditorFactory = (...args) => new CustomEditor(...args);
+  harness.ctx.ui.setEditorComponent(laterFactory);
+  await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, harness.ctx);
+  assert.equal(harness.ctx.ui.getEditorComponent(), laterFactory);
+});
+
+test("adjacent image markers submit in order and survive native history recovery", async () => {
+  const first = writeClipboardImage("png", PNG_BYTES);
+  const second = writeClipboardImage("jpg", JPEG_BYTES);
+  try {
+    const harness = createHarness();
+    await harness.sessionStart?.({ type: "session_start", reason: "startup" }, harness.ctx);
+    const editor = harness.editor!;
+    editor.insertTextAtCursor?.(first);
+    editor.insertTextAtCursor?.(second);
+    assert.equal(editor.getText(), "[Image 1][Image 2]");
+    let submitted = "";
+    editor.onSubmit = (text) => { submitted = text; };
+    editor.handleInput("\r");
+    assert.equal(submitted, "[Image 1][Image 2]");
+    const result = assertTransform(await harness.handler(
+      { type: "input", source: "interactive", text: submitted }, harness.ctx,
+    ));
+    assert.equal(result.text, submitted);
+    assert.deepEqual(result.images?.map((image) => image.mimeType), ["image/png", "image/jpeg"]);
+    harness.ctx.ui.setEditorText(result.text);
+    const recovered = assertTransform(await harness.handler(
+      { type: "input", source: "interactive", text: harness.ctx.ui.getEditorText(), streamingBehavior: "followUp" },
+      { ...harness.ctx, isIdle: () => false },
+    ));
+    assert.equal(recovered.text, submitted);
+    assert.deepEqual(recovered.images, result.images);
+    await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, harness.ctx);
+  } finally {
+    rmSync(first, { force: true });
+    rmSync(second, { force: true });
+  }
+});
+
+test("failed marker submissions restore visible markers and never release a bare path", async () => {
+  const missing = join(tmpdir(), `pi-clipboard-${randomUUID()}.png`);
+  const harness = createHarness();
+  await harness.sessionStart?.({ type: "session_start", reason: "startup" }, harness.ctx);
+  harness.editor!.insertTextAtCursor?.(missing);
+  assert.deepEqual(await harness.handler(
+    { type: "input", source: "interactive", text: "[Image 1]" }, harness.ctx,
+  ), { action: "handled" });
+  assert.equal(harness.editor!.getText(), "[Image 1]");
+  assert.equal(harness.ctx.ui.getEditorText(), "[Image 1]");
+  await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, harness.ctx);
+});
+
+test("non-TUI startup never installs an editor or terminal listener", async () => {
+  for (const mode of ["rpc", "json", "print"] as const) {
+    const harness = createHarness();
+    await harness.sessionStart?.({ type: "session_start", reason: "startup" }, { ...harness.ctx, mode });
+    assert.equal(harness.editor, undefined);
+    assert.equal(harness.terminalInput, undefined);
+    assert.deepEqual(harness.calls, []);
+  }
+});
+
+test("reload never reuses an old image number for a different clipboard file", async () => {
+  const harness = createHarness();
+  harness.entries.push({ type: "custom", customType: "image-input", data: { nextImageId: 8 } });
+  await harness.sessionStart?.({ type: "session_start", reason: "startup" }, harness.ctx);
+  const path = join(tmpdir(), `pi-clipboard-${randomUUID()}.png`);
+  harness.editor!.insertTextAtCursor?.(path);
+  assert.equal(harness.editor!.getText(), "[Image 8]");
+  assert.deepEqual(harness.entries.at(-1)?.data, { nextImageId: 9 });
+  assert.deepEqual(await harness.handler(
+    { type: "input", source: "interactive", text: "[Image 1]" }, harness.ctx,
+  ), { action: "continue" });
+  await harness.sessionShutdown?.({ type: "session_shutdown", reason: "quit" }, harness.ctx);
+});
 
 test("version guard accepts 0.84.3 stable and newer", () => {
   assert.equal(isSupportedPiVersion("0.84.2"), false);
@@ -281,7 +434,7 @@ test("converts a single canonical PNG/JPEG/WebP path to marker and flat image co
           harness.ctx,
         ),
       );
-      assert.equal(result.text, "`[Image]`");
+      assert.equal(result.text, "[Image 1]");
       assert.ok(!result.text.includes("pi-clipboard-"));
       assert.ok(result.images);
       assert.equal(result.images.length, 1);
@@ -334,7 +487,7 @@ test("preserves surrounding text, ordinary paths, and handwritten markers", asyn
         harness.ctx,
       ),
     );
-    assert.equal(result.text, `Describe \`[Image]\`. Also look at ${ordinaryPath} and keep [Image] literal.`);
+    assert.equal(result.text, `Describe [Image 1]. Also look at ${ordinaryPath} and keep [Image] literal.`);
     assert.equal(result.images?.length, 1);
   } finally {
     rmSync(filePath, { force: true });
@@ -354,7 +507,7 @@ test("keeps existing images first and appends the plugin image", async () => {
         harness.ctx,
       ),
     );
-    assert.equal(result.text, "Analyze `[Image]`");
+    assert.equal(result.text, "Analyze [Image 1]");
     assert.ok(result.images);
     assert.equal(result.images.length, 2);
     assert.equal(result.images[0], existing[0]);
@@ -400,7 +553,7 @@ test("converts every eligible occurrence in order and preserves existing images 
     );
     assert.equal(
       result.text,
-      `First \`[Image]\`; handwritten [Image]; second \`[Image]\`; gif ${gif}; ordinary ${ordinary}`,
+      `First [Image 1]; handwritten [Image]; second [Image 2]; gif ${gif}; ordinary ${ordinary}`,
     );
     assert.ok(result.images);
     assert.equal(result.images.length, 3);
@@ -426,7 +579,7 @@ test("repeated clipboard paths produce one marker and attachment per occurrence"
         harness.ctx,
       ),
     );
-    assert.equal(result.text, "`[Image]` then `[Image]`");
+    assert.equal(result.text, "[Image 1] then [Image 1]");
     assert.equal(result.images?.length, 2);
     assert.deepEqual(result.images?.[0], result.images?.[1]);
   } finally {
@@ -553,7 +706,7 @@ test("converts image drafts through idle, steer, and follow-up delivery paths", 
           ctx,
         ),
       );
-      assert.equal(result.text, "First `[Image]`; repeat `[Image]`; second `[Image]`");
+      assert.equal(result.text, "First [Image 1]; repeat [Image 1]; second [Image 2]");
       assert.equal(result.images?.length, 4);
       assert.equal(result.images?.[0], existing);
       assert.equal(result.images?.[1]?.mimeType, "image/png");
@@ -597,9 +750,9 @@ test("multiple queued transforms remain independent on one extension instance", 
       ),
     );
 
-    assert.equal(steer.text, "Steer `[Image]` and `[Image]`");
+    assert.equal(steer.text, "Steer [Image 1] and [Image 1]");
     assert.equal(steer.images?.length, 2);
-    assert.equal(followUp.text, "Follow up `[Image]`");
+    assert.equal(followUp.text, "Follow up [Image 2]");
     assert.equal(followUp.images?.length, 1);
     assert.equal(followUp.images?.[0]?.mimeType, "image/webp");
     assert.deepEqual(harness.editorTexts, []);
@@ -733,7 +886,7 @@ test("compaction terminal guard consumes only image-bearing submit keys and rele
     await harness.sessionStart?.({ type: "session_start", reason: "startup" }, harness.ctx);
     assert.ok(harness.terminalInput);
 
-    harness.editorValue.value = filePath;
+    harness.ctx.ui.setEditorText(filePath);
     assert.equal(harness.terminalInput?.("\r"), undefined);
     await harness.sessionBeforeCompact?.({ type: "session_before_compact" }, harness.ctx);
     assert.deepEqual(harness.terminalInput?.("\r"), { consume: true });
@@ -741,9 +894,9 @@ test("compaction terminal guard consumes only image-bearing submit keys and rele
     assert.equal(harness.editorValue.value, filePath);
     assert.match(harness.notifications.at(-1)?.message ?? "", /compaction/i);
 
-    harness.editorValue.value = "plain text";
+    harness.ctx.ui.setEditorText("plain text");
     assert.equal(harness.terminalInput?.("\r"), undefined);
-    harness.editorValue.value = filePath;
+    harness.ctx.ui.setEditorText(filePath);
     assert.equal(harness.terminalInput?.("x"), undefined);
 
     await harness.sessionCompact?.({ type: "session_compact" }, harness.ctx);
@@ -780,7 +933,7 @@ test("compaction guard remains fail-closed when feedback is unavailable", async 
         },
       } as ExtensionContext;
       await harness.sessionStart?.({ type: "session_start", reason: "startup" }, ctx);
-      harness.editorValue.value = filePath;
+      harness.ctx.ui.setEditorText(filePath);
       await harness.sessionBeforeCompact?.({ type: "session_before_compact" }, ctx);
       assert.deepEqual(harness.terminalInput?.("\r"), { consume: true });
       assert.equal(harness.editorValue.value, filePath);

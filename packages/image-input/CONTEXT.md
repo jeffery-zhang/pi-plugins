@@ -1,11 +1,11 @@
 # Image Input
 
-Image Input converts Pi-native TUI clipboard image paths into image attachments when a user submits an idle, `steer`, or `followUp` draft. It leaves editor presentation, platform clipboard behavior, and queued-message scheduling to Pi.
+Image Input presents Pi-native clipboard images as numbered markers while the user edits a TUI draft, then delivers image attachments through idle, `steer`, or `followUp` submission. Pi owns clipboard access and queued-message scheduling.
 
 ## Language
 
 **Image Draft**:
-The active TUI draft containing zero or more clipboard image paths before submission.
+The active TUI draft containing zero or more Image Markers or Clipboard Image Paths before submission.
 _Avoid_: Image state, staged prompt
 
 **Clipboard Image Path**:
@@ -13,7 +13,7 @@ A temporary local path created by Pi's native clipboard flow for a pasted image.
 _Avoid_: Uploaded image, arbitrary image path
 
 **Image Marker**:
-The unnumbered Image Marker consists of `[Image]` wrapped in backticks and replaces one clipboard image path in submitted text. A marker records position only; it has no stable identity and does not retrieve historical images.
+The numbered label `[Image N]` identifies one clipboard image in the current input context and appears in both the Image Draft and submitted text. The same Clipboard Image Path keeps its label, and numbers are not reused for different images within a Pi session. A label cannot retrieve a historical image after its input context has ended.
 _Avoid_: Image Reference, image index
 
 **Image Attachment**:
