@@ -1,2 +1,4 @@
 node_modules/
 /.scratch/pi-purge/artifacts/
+/.scratch/pi-sync/linux-runtime.json
+/.scratch/pi-sync/tui-fixture.json

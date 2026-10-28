@@ -2,7 +2,7 @@
 
 ## 基线
 
-- 本机使用 `@earendil-works/pi-coding-agent@0.84.3`，npm 元数据指向 [`earendil-works/pi`](https://github.com/earendil-works/pi/tree/v0.84.3/packages/coding-agent)。本文以该版本随包的 [`extensions.md`](https://github.com/earendil-works/pi/blob/v0.84.3/packages/coding-agent/docs/extensions.md) 和 [`packages.md`](https://github.com/earendil-works/pi/blob/v0.84.3/packages/coding-agent/docs/packages.md) 为准。
+- 仓库通用兼容基线为 `@earendil-works/pi-coding-agent@0.84.3`，npm 元数据指向 [`earendil-works/pi`](https://github.com/earendil-works/pi/tree/v0.84.3/packages/coding-agent)。本文以该版本随包的 [`extensions.md`](https://github.com/earendil-works/pi/blob/v0.84.3/packages/coding-agent/docs/extensions.md) 和 [`packages.md`](https://github.com/earendil-works/pi/blob/v0.84.3/packages/coding-agent/docs/packages.md) 为准。
 - 0.84.3 在 0.84.2 基础上新增 `session_compact_failed` 扩展事件，Image Input 以此可靠处理 compaction 失败/取消，不再使用 0.84.2 间接状态推断。
 - 旧包 `@mariozechner/pi-coding-agent` 已弃用；新代码统一从 `@earendil-works/*` 导入。参见[当前 npm 包](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)与[旧 npm 包](https://www.npmjs.com/package/@mariozechner/pi-coding-agent)。
 
@@ -60,3 +60,7 @@ packages/<plugin-name>/
 - 自动发现仅扫描 `~/.pi/agent/extensions/` 和受信任项目的 `.pi/extensions/` 中的单文件或 `*/index.ts`；只有自动发现位置支持 `/reload`。开发时至少实际触发新增 command/tool/event，并验证取消、错误、无 UI 模式及 `session_shutdown` 清理路径。
 
 Pi 没有规定测试框架、lint 或 tsconfig；后续新增脚本属于本仓库规范，应保持每个插件最小且可独立运行。
+
+## Pi Sync 的独立兼容范围
+
+2026-10-27 本机实际 Pi 为 1.4.0。Pi Sync 按用户确认独立声明支持 1.4.x，已验证 Windows 与 WSL Ubuntu 的实际宿主和公开命令；macOS 按用户约定标记尚未实测。此决定不升级其他插件的通用基线；接口研究与证据见 [Pi Sync 研究](./pi-sync.md) 和 [验证记录](../../.scratch/pi-sync/verification.md)。
