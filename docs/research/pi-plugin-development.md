@@ -37,7 +37,7 @@ packages/<plugin-name>/
 
 ```json
 {
-  "name": "@pi-plugins/<plugin-name>",
+  "name": "@jingoz/pi-<plugin-name>",
   "private": true,
   "type": "module",
   "pi": { "extensions": ["./src/index.ts"] },

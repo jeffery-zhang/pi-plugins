@@ -1,5 +1,5 @@
 {
-  "name": "@pi-plugins/model-detect",
+  "name": "@jingoz/pi-model-detect",
   "private": true,
   "type": "module",
   "pi": { "extensions": ["./src/index.ts"] },

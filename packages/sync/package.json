@@ -1,5 +1,5 @@
 {
-  "name": "@pi-plugins/sync",
+  "name": "@jingoz/pi-sync",
   "private": true,
   "type": "module",
   "pi": { "extensions": ["./src/index.ts"] },

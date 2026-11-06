@@ -18,6 +18,7 @@ Issue 以本地 Markdown 文件记录在 `.scratch/` 下。详见 `docs/agents/i
 
 ### 包结构
 
+- 本仓库自有包（含私有包）的 `name` 统一使用 `@jingoz` scope；插件包命名为 `@jingoz/pi-<plugin-name>`。
 - 尚未实现的插件可以先仅在 `packages/<plugin-name>/CONTEXT.md` 记录领域语言；开始实现时必须补齐以下标准包结构。
 - 每个已实现插件独立放在 `packages/<kebab-case-name>/`，至少包含 `package.json` 和 `src/index.ts`。
 - `package.json` 使用 `type: "module"`、`private: true` 和显式的 `pi.extensions: ["./src/index.ts"]`；仅在准备发布时添加版本与发布元数据，并移除 `private: true`。

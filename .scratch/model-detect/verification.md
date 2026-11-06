@@ -4,9 +4,9 @@
 
 ## 已执行的检查
 
-- `pnpm --filter @pi-plugins/model-detect check`：通过。
-- `pnpm --filter @pi-plugins/model-detect test`：47/47 通过，使用真实 Pi 会话命令边界、临时 Agent Directory 和本地 HTTP。
-- `pnpm --filter @pi-plugins/model-detect smoke`：通过，真实 Pi CLI 以 `-e` 加载本包，在 RPC 模式访问公开 models.dev。取消的单模型不写入；随后一次确认更新两个目标并保存各自来源；无 agent_start/model 请求。
+- `pnpm --filter @jingoz/pi-model-detect check`：通过。
+- `pnpm --filter @jingoz/pi-model-detect test`：47/47 通过，使用真实 Pi 会话命令边界、临时 Agent Directory 和本地 HTTP。
+- `pnpm --filter @jingoz/pi-model-detect smoke`：通过，真实 Pi CLI 以 `-e` 加载本包，在 RPC 模式访问公开 models.dev。取消的单模型不写入；随后一次确认更新两个目标并保存各自来源；无 agent_start/model 请求。
 - 真实 ConPTY TUI 冒烟：以 `pi -e` 临时加载本包；手工输入原厂来源，Esc 取消后磁盘未变化；provider 批量输入两个来源，浏览长预览并确认，核验两个模型和来源映射均已保存；显式附来源参数替换已保存映射并再次确认，磁盘值正确。
 - 修复后再次启动真实 TUI，已观察到 overlay 中完整的分行差异、行号、滚动/确认/取消提示及成功后的“请重启 Pi 生效”。当前会话 footer 仍显示旧 400k，新磁盘参数为 128k，证明没有热切换当前模型。
 - 所有冒烟仅使用临时模型连接与假凭据；未安装扩展到真实 Pi，未修改真实模型配置，未发送模型推理请求。

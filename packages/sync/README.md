@@ -107,9 +107,9 @@ pi -e ./packages/sync
 ## 验证
 
 ```powershell
-pnpm --filter @pi-plugins/sync check
-pnpm --filter @pi-plugins/sync test
-pnpm --filter @pi-plugins/sync smoke
+pnpm --filter @jingoz/pi-sync check
+pnpm --filter @jingoz/pi-sync test
+pnpm --filter @jingoz/pi-sync smoke
 ```
 
 检查通过公开命令入口，使用临时 Agent Directory、真实本地 bare Git 仓库、本地 npm registry 与 Git 包，以及真实 Pi SDK/CLI。覆盖配置和资源往返、版本固定、鉴权保留、备份回退、错误诊断、竞争、取消、恢复及 print/JSON/RPC 模式；不请求真实模型。

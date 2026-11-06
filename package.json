@@ -1,5 +1,5 @@
 {
-  "name": "pi-plugins",
+  "name": "@jingoz/pi-plugins",
   "private": true,
   "packageManager": "pnpm@10.29.2"
 }

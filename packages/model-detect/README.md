@@ -50,9 +50,9 @@ pi -e ./packages/model-detect
 ## 开发验证
 
 ```powershell
-pnpm --filter @pi-plugins/model-detect check
-pnpm --filter @pi-plugins/model-detect test
-pnpm --filter @pi-plugins/model-detect smoke
+pnpm --filter @jingoz/pi-model-detect check
+pnpm --filter @jingoz/pi-model-detect test
+pnpm --filter @jingoz/pi-model-detect smoke
 ```
 
 `test` 使用本地 HTTP、隔离的 Pi 会话和临时文件，不读真实用户配置。`smoke` 通过真实 Pi CLI 的 `-e` 加载包，在 RPC 模式访问公开 models.dev，验证来源输入、取消、批量确认及保存；需要可访问目录的网络，不调用模型。
