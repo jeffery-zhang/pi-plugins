@@ -6,6 +6,7 @@
 - [Image Input](./packages/image-input/CONTEXT.md): presents clipboard images as numbered markers during editing and delivers image attachments at submission.
 - [Pi Purge](./packages/pi-purge/CONTEXT.md): adjusts model behavior in user-defined content scenarios while preserving Pi coding capabilities; DS is the first required validation target.
 - [Pi Sync](./packages/sync/CONTEXT.md): saves and restores portable user-level Pi environments while authentication stays local to each machine.
+- [Model Detect](./packages/model-detect/CONTEXT.md): enriches existing model metadata from provider-specific catalog entries.
 
 ## Relationships
 

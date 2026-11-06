@@ -64,3 +64,7 @@ Pi 没有规定测试框架、lint 或 tsconfig；后续新增脚本属于本仓
 ## Pi Sync 的独立兼容范围
 
 2026-10-27 本机实际 Pi 为 1.4.0。Pi Sync 按用户确认独立声明支持 1.4.x，已验证 Windows 与 WSL Ubuntu 的实际宿主和公开命令；macOS 按用户约定标记尚未实测。此决定不升级其他插件的通用基线；接口研究与证据见 [Pi Sync 研究](./pi-sync.md) 和 [验证记录](../../.scratch/pi-sync/verification.md)。
+
+## Model Detect 的独立兼容范围
+
+Model Detect 按用户确认以 Pi 1.4+ 为目标，开发依赖固定为 1.4.0；不升级其他插件的通用基线。已核对 models.dev 的公开接口、模型覆盖和会话生效边界，实际宿主验证为 Windows / Pi 1.4.0；未来版本、WSL 与 macOS 尚未实测。研究见 [Model Detect 研究](./models-dev-detect.md)，实现与验证见 [规格](../../.scratch/model-detect/spec.md)和[验证记录](../../.scratch/model-detect/verification.md)。
