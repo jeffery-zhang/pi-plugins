@@ -4,6 +4,12 @@ Pi 1.4+ 扩展：从 [models.dev](https://models.dev/) 补全已有模型的上�
 
 ## 使用
 
+从 npm 安装：
+
+```powershell
+pi install npm:@jingoz/pi-model-detect
+```
+
 先临时加载扩展（从仓库根目录执行）：
 
 ```powershell
@@ -52,7 +58,14 @@ pi -e ./packages/model-detect
 ```powershell
 pnpm --filter @jingoz/pi-model-detect check
 pnpm --filter @jingoz/pi-model-detect test
+pnpm --filter @jingoz/pi-model-detect test:package
 pnpm --filter @jingoz/pi-model-detect smoke
 ```
 
 `test` 使用本地 HTTP、隔离的 Pi 会话和临时文件，不读真实用户配置。`smoke` 通过真实 Pi CLI 的 `-e` 加载包，在 RPC 模式访问公开 models.dev，验证来源输入、取消、批量确认及保存；需要可访问目录的网络，不调用模型。
+
+`test:package` 对真实 npm 发布入口做离线 dry-run，检查版本解析及打包，不上传。正式发布前的 `prepublishOnly` 自动运行类型检查、测试和该发布检查。
+
+## 发布
+
+在本包目录执行 `npm publish`。包已配置公开访问，发布内容仅包含运行时源文件、说明、领域术语和许可证；不会包含测试或开发记录。首次版本为 `0.1.0`，实际发布需要拥有 `@jingoz` 的 npm 发布权限。

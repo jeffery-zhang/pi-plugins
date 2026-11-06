@@ -24,7 +24,7 @@
 
 | 需求/不变量 | 实现与验证 |
 |---|---|
-| 仅斜杠命令，Pi 1.4+ 包结构 | 包声明为 private ESM、显式扩展入口；factory 注册 detect 与 shutdown，无 CLI flag/tool；实际 Pi 1.4.0 加载通过 |
+| 仅斜杠命令，Pi 1.4+ 包结构 | 包声明为 ESM、显式扩展入口；factory 注册 detect 与 shutdown，无 CLI flag/tool；实际 Pi 1.4.0 加载通过。首次发布准备时设置版本 0.1.0 并移除 private |
 | 单项已有模型、批量显式已有模型 | 使用 registry 识别目标，批量来自显式 models/overrides 并去重；真实宿主覆盖内置单项、空批量、未知覆盖与嵌套 ID |
 | 公共目录一次获取、结构和数值校验 | 命令只调用一次目录读取；请求超时/取消/20 MiB 上限；HTTP、JSON、类型、有限价格、正整数限制均校验 |
 | 可指定目录名称/ID，唯一来源 | 精确来源优先；输入查询后有歧义必选唯一条目；TUI 选择器最多显示八行并可滚动，RPC 用原生 select |
@@ -44,3 +44,13 @@
 - 模型文件和映射文件分别原子发布，普通失败会回退；异常断电/强制结束进程不具备跨文件事务保证。备份和遗留锁处理已写入 README；并发外部编辑采用发布前检测，不承诺与任意外部编辑器互斥。
 - 符号链接/硬链接配置拒绝更新；原配置不是 UTF-8、JSON 结构有误或重复键时拒绝更新，保留原文件。
 - 未进行真实账户收费验证、其他平台与未来 Pi 版本测试；未提交或推送。
+
+## 0.1.0 发布配置修复
+
+用户在本包执行 npm publish，npm 11.6.2 报 `Cannot read properties of null (reading 'prerelease')`。本机离线 publish dry-run 复现了同一错误；独立临时目录中的最小 manifest 同样复现，排除了 workspace 和网络因素。npm 的 publish 实现在 semver.parse(version) 返回 null 后直接读取 prerelease；缺少 version 是该异常的原因，移除 private 但不补版本仍会失败。
+
+- 新增 `test:package`，调用真实 npm 发布入口的离线 dry-run（禁用生命周期脚本并指向本机不可用 registry，确保不上传）。修复前命令退出 1，并得到用户的精确异常；修复后退出 0。
+- 本包准备首发 `0.1.0`，移除 private，配置 public access、Pi Gallery 关键字、仓库信息、MIT 许可证与 files 白名单。原厂目录价语义和运行时代码未变化。
+- 完整 `npm publish --dry-run --offline --json --registry=http://127.0.0.1:1` 通过，包含 prepublishOnly 的 check、47 项测试和发布回归检查。
+- `npm pack --dry-run --ignore-scripts --offline --json` 的清单精确包含 CONTEXT.md、LICENSE、README.md、package.json 及四个 src 模块，共 8 项；没有测试、ADR 或 scratch 记录。
+- 公开 registry 查询返回 404，确认本次准备使用初始版本；本轮没有实际发布或验证账号的发布权限。
