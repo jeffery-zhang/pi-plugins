@@ -1,0 +1,38 @@
+{
+  "name": "@jingoz/pi-prompt-replace",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Model-scoped Pi system prompt replacement for upstream prompt filtering",
+  "keywords": ["pi", "pi-package", "prompt", "model", "compatibility"],
+  "license": "MIT",
+  "files": ["src", "LICENSE", "README.md"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeffery-zhang/pi-plugins.git",
+    "directory": "packages/pi-prompt-replace"
+  },
+  "homepage": "https://github.com/jeffery-zhang/pi-plugins/tree/main/packages/pi-prompt-replace",
+  "bugs": {
+    "url": "https://github.com/jeffery-zhang/pi-plugins/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types test/prompt-replace.test.ts",
+    "smoke": "node --experimental-strip-types test/local-smoke.ts",
+    "prepublishOnly": "pnpm run check && pnpm run test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@types/node": "26.3.0",
+    "typescript": "^5.9.3"
+  }
+}
